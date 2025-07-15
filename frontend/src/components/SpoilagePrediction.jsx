@@ -1,0 +1,497 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/Card"
+import { Button } from "./ui/Button"
+import { Badge } from "./ui/Badge"
+import { Input } from "./ui/Input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/Select"
+import { AlertTriangle, CheckCircle, Clock, Search, RefreshCw, TrendingUp, Calendar } from "lucide-react"
+
+export default function SpoilagePrediction(props) {
+  const [searchTerm, setSearchTerm] = useState("")
+  const [categoryFilter, setCategoryFilter] = useState("all")
+  const [freshnessFilter, setFreshnessFilter] = useState("all")
+  const [currentTime, setCurrentTime] = useState(new Date())
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date())
+    }, 60000) // Update every minute
+    return () => clearInterval(timer)
+  }, [])
+
+  // Sample ingredient data with spoilage prediction information
+  const ingredientData = [
+    {
+      id: 1,
+      name: "Beef",
+      category: "Meat",
+      freshness: 14,
+      estimatedDaysLeft: 2,
+      maxLifespan: 14,
+      status: "critical",
+      lastUpdated: "2 hours ago",
+      temperature: 38,
+      location: "Freezer B1",
+      humidity: 85,
+    },
+    {
+      id: 2,
+      name: "Broccoli",
+      category: "Vegetables",
+      freshness: 60,
+      estimatedDaysLeft: 6,
+      maxLifespan: 10,
+      status: "good",
+      lastUpdated: "1 hour ago",
+      temperature: 35,
+      location: "Refrigerator C1",
+      humidity: 90,
+    },
+    {
+      id: 3,
+      name: "Capsicum",
+      category: "Vegetables",
+      freshness: 42,
+      estimatedDaysLeft: 5,
+      maxLifespan: 12,
+      status: "warning",
+      lastUpdated: "30 minutes ago",
+      temperature: 36,
+      location: "Refrigerator C1",
+      humidity: 88,
+    },
+    {
+      id: 4,
+      name: "Carrot",
+      category: "Vegetables",
+      freshness: 53,
+      estimatedDaysLeft: 8,
+      maxLifespan: 15,
+      status: "good",
+      lastUpdated: "45 minutes ago",
+      temperature: 34,
+      location: "Storage A2",
+      humidity: 92,
+    },
+    {
+      id: 5,
+      name: "Cauliflower",
+      category: "Vegetables",
+      freshness: 40,
+      estimatedDaysLeft: 4,
+      maxLifespan: 10,
+      status: "warning",
+      lastUpdated: "1 hour ago",
+      temperature: 35,
+      location: "Refrigerator C1",
+      humidity: 89,
+    },
+    {
+      id: 6,
+      name: "Chicken",
+      category: "Meat",
+      freshness: 25,
+      estimatedDaysLeft: 3,
+      maxLifespan: 12,
+      status: "warning",
+      lastUpdated: "2 hours ago",
+      temperature: 39,
+      location: "Freezer B2",
+      humidity: 83,
+    },
+    {
+      id: 7,
+      name: "Tomatoes",
+      category: "Vegetables",
+      freshness: 18,
+      estimatedDaysLeft: 2,
+      maxLifespan: 8,
+      status: "critical",
+      lastUpdated: "1 hour ago",
+      temperature: 42,
+      location: "Storage A1",
+      humidity: 75,
+    },
+    {
+      id: 8,
+      name: "Lettuce",
+      category: "Vegetables",
+      freshness: 12,
+      estimatedDaysLeft: 1,
+      maxLifespan: 7,
+      status: "critical",
+      lastUpdated: "30 minutes ago",
+      temperature: 38,
+      location: "Refrigerator C2",
+      humidity: 85,
+    },
+    {
+      id: 9,
+      name: "Milk",
+      category: "Dairy",
+      freshness: 35,
+      estimatedDaysLeft: 4,
+      maxLifespan: 12,
+      status: "warning",
+      lastUpdated: "1 hour ago",
+      temperature: 36,
+      location: "Refrigerator B3",
+      humidity: 80,
+    },
+    {
+      id: 10,
+      name: "Cheese",
+      category: "Dairy",
+      freshness: 72,
+      estimatedDaysLeft: 12,
+      maxLifespan: 16,
+      status: "good",
+      lastUpdated: "2 hours ago",
+      temperature: 35,
+      location: "Refrigerator B3",
+      humidity: 78,
+    },
+    {
+      id: 11,
+      name: "Onions",
+      category: "Vegetables",
+      freshness: 85,
+      estimatedDaysLeft: 18,
+      maxLifespan: 21,
+      status: "excellent",
+      lastUpdated: "3 hours ago",
+      temperature: 68,
+      location: "Storage A3",
+      humidity: 65,
+    },
+    {
+      id: 12,
+      name: "Potatoes",
+      category: "Vegetables",
+      freshness: 78,
+      estimatedDaysLeft: 15,
+      maxLifespan: 20,
+      status: "good",
+      lastUpdated: "2 hours ago",
+      temperature: 65,
+      location: "Storage A3",
+      humidity: 70,
+    },
+  ]
+
+  const categories = ["all", "Meat", "Vegetables", "Dairy", "Fruits", "Spices"]
+  const freshnessLevels = ["all", "critical", "warning", "good", "excellent"]
+
+  const getFreshnessColor = (freshness) => {
+    if (freshness <= 20) return "bg-red-500"
+    if (freshness <= 40) return "bg-orange-500"
+    if (freshness <= 60) return "bg-yellow-500"
+    if (freshness <= 80) return "bg-green-500"
+    return "bg-emerald-500"
+  }
+
+  const getFreshnessStatus = (freshness) => {
+    if (freshness <= 20) return "critical"
+    if (freshness <= 40) return "warning"
+    if (freshness <= 60) return "good"
+    return "excellent"
+  }
+
+  const getDaysLeftColor = (daysLeft) => {
+    if (daysLeft <= 2) return "text-orange-600"
+    if (daysLeft <= 5) return "text-green-600"
+    return "text-green-700"
+  }
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case "critical":
+        return <AlertTriangle className="h-4 w-4 text-red-600" />
+      case "warning":
+        return <Clock className="h-4 w-4 text-orange-600" />
+      case "good":
+      case "excellent":
+        return <CheckCircle className="h-4 w-4 text-green-600" />
+      default:
+        return <Clock className="h-4 w-4 text-gray-600" />
+    }
+  }
+
+  const filteredIngredients = ingredientData.filter((item) => {
+    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesCategory = categoryFilter === "all" || item.category === categoryFilter
+    const matchesFreshness = freshnessFilter === "all" || getFreshnessStatus(item.freshness) === freshnessFilter
+    return matchesSearch && matchesCategory && matchesFreshness
+  })
+
+  const criticalItems = ingredientData.filter((item) => item.estimatedDaysLeft <= 2).length
+  const warningItems = ingredientData.filter((item) => item.freshness <= 40 && item.estimatedDaysLeft > 2).length
+  const goodItems = ingredientData.filter((item) => item.freshness > 40).length
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col space-y-4">
+        <div>
+          <h2 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+            Spoilage Prediction
+          </h2>
+          <p className="text-gray-600 mt-1 font-medium text-sm">
+            AI-powered freshness monitoring and spoilage prediction system
+          </p>
+        </div>
+
+        {/* Status Indicators */}
+        <div className="flex flex-wrap items-center gap-4 p-4 bg-gradient-to-r from-gray-50 to-white rounded-lg border border-gray-200">
+          <div className="flex items-center space-x-2">
+            <AlertTriangle className="h-4 w-4 text-orange-600" />
+            <span className="text-sm font-medium text-gray-700">{criticalItems} items expiring today</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <CheckCircle className="h-4 w-4 text-green-600" />
+            <span className="text-sm font-medium text-gray-700">
+              Last update: Today, {currentTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            </span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Calendar className="h-4 w-4 text-blue-600" />
+            <span className="text-sm font-medium text-gray-700">
+              {warningItems + criticalItems} food recommendations available
+            </span>
+          </div>
+        </div>
+
+        {/* Search and Filters */}
+        <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+          <div className="flex flex-col sm:flex-row gap-3 flex-1 max-w-4xl">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-blue-400" />
+              <Input
+                placeholder="Search ingredients..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 h-10 border-blue-200 focus:border-blue-400 focus:ring-blue-400"
+              />
+            </div>
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="w-full sm:w-48 h-10 border-blue-200">
+                <SelectValue placeholder="All Categories" />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.map((category) => (
+                  <SelectItem key={category} value={category}>
+                    {category === "all" ? "All Categories" : category}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={freshnessFilter} onValueChange={setFreshnessFilter}>
+              <SelectTrigger className="w-full sm:w-48 h-10 border-blue-200">
+                <SelectValue placeholder="All Freshness" />
+              </SelectTrigger>
+              <SelectContent>
+                {freshnessLevels.map((level) => (
+                  <SelectItem key={level} value={level}>
+                    {level === "all" ? "All Freshness" : level.charAt(0).toUpperCase() + level.slice(1)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600 font-medium">
+              Showing {filteredIngredients.length} of {ingredientData.length} items
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-blue-200 text-blue-700 hover:bg-blue-50 bg-transparent"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
+        </div>
+
+        {/* Summary Stats */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card className="bg-gradient-to-br from-red-50 to-orange-50 border-red-200 shadow-lg">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-red-700">Critical Items</p>
+                  <p className="text-2xl font-bold text-red-800">{criticalItems}</p>
+                  <p className="text-xs text-red-600">≤ 2 days left</p>
+                </div>
+                <AlertTriangle className="h-8 w-8 text-red-600" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-orange-50 to-yellow-50 border-orange-200 shadow-lg">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-orange-700">Warning Items</p>
+                  <p className="text-2xl font-bold text-orange-800">{warningItems}</p>
+                  <p className="text-xs text-orange-600">Low freshness</p>
+                </div>
+                <Clock className="h-8 w-8 text-orange-600" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200 shadow-lg">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-green-700">Good Condition</p>
+                  <p className="text-2xl font-bold text-green-800">{goodItems}</p>
+                  <p className="text-xs text-green-600">Fresh items</p>
+                </div>
+                <CheckCircle className="h-8 w-8 text-green-600" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200 shadow-lg">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-blue-700">Total Items</p>
+                  <p className="text-2xl font-bold text-blue-800">{ingredientData.length}</p>
+                  <p className="text-xs text-blue-600">Being monitored</p>
+                </div>
+                <TrendingUp className="h-8 w-8 text-blue-600" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Ingredient Cards Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
+        {filteredIngredients.map((ingredient) => (
+          <Card
+            key={ingredient.id}
+            className="bg-white border-gray-200 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
+          >
+            <CardContent className="p-4">
+              {/* Ingredient Name and Status */}
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-base font-bold text-gray-900">{ingredient.name}</h3>
+                {getStatusIcon(ingredient.status)}
+              </div>
+
+              {/* Freshness Bar */}
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-600">Freshness</span>
+                  <span className="text-sm font-bold text-gray-900">{ingredient.freshness}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className={`h-2 rounded-full transition-all duration-500 ${getFreshnessColor(ingredient.freshness)}`}
+                    style={{ width: `${ingredient.freshness}%` }}
+                  ></div>
+                </div>
+              </div>
+
+              {/* Days Left and Max Lifespan */}
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="text-center">
+                  <p className="text-xs font-medium text-gray-500 mb-1">Est. Days Left</p>
+                  <p className={`text-lg font-bold ${getDaysLeftColor(ingredient.estimatedDaysLeft)}`}>
+                    {ingredient.estimatedDaysLeft} Days
+                  </p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs font-medium text-gray-500 mb-1">Max Lifespan</p>
+                  <p className="text-lg font-bold text-blue-600">{ingredient.maxLifespan} Days</p>
+                </div>
+              </div>
+
+              {/* Additional Info */}
+              <div className="space-y-2 pt-4 border-t border-gray-100">
+                <div className="flex justify-between text-xs text-gray-600">
+                  <span>Category:</span>
+                  <span className="font-medium">{ingredient.category}</span>
+                </div>
+              </div>
+
+              {/* Status Badge */}
+              <div className="mt-4">
+                <Badge
+                  className={`w-full justify-center font-medium text-xs ${
+                    ingredient.status === "critical"
+                      ? "bg-red-100 text-red-800 border-red-300"
+                      : ingredient.status === "warning"
+                        ? "bg-orange-100 text-orange-800 border-orange-300"
+                        : ingredient.status === "good"
+                          ? "bg-green-100 text-green-800 border-green-300"
+                          : "bg-emerald-100 text-emerald-800 border-emerald-300"
+                  } border`}
+                >
+                  {ingredient.status === "critical"
+                    ? "Use Immediately"
+                    : ingredient.status === "warning"
+                      ? "Use Soon"
+                      : ingredient.status === "good"
+                        ? "Good Condition"
+                        : "Excellent Condition"}
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* No Results */}
+      {filteredIngredients.length === 0 && (
+        <Card className="bg-white/80 backdrop-blur-sm border-blue-200 shadow-xl">
+          <CardContent className="p-12 text-center">
+            <Search className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-base font-medium text-gray-900 mb-2">No ingredients found</h3>
+            <p className="text-sm text-gray-600">Try adjusting your search or filter criteria</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* AI Recommendations */}
+      <Card className="bg-white/80 backdrop-blur-sm border-blue-200 shadow-xl">
+        <CardHeader className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-t-lg p-4">
+          <CardTitle className="text-base">AI Spoilage Predictions & Recommendations</CardTitle>
+          <CardDescription className="text-blue-100 text-xs">
+            Smart insights to prevent food waste and optimize freshness
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-4 space-y-4">
+          <div className="p-4 bg-gradient-to-r from-red-50 to-orange-50 rounded-lg border border-red-200 hover:shadow-md transition-all">
+            <h4 className="font-bold text-sm text-red-800 mb-2">Urgent Action Required</h4>
+            <p className="text-red-700 font-medium leading-relaxed text-sm">
+              {criticalItems} items need immediate attention. Beef and Lettuce are predicted to spoil within 24 hours.
+              Consider creating daily specials or processing these items immediately.
+            </p>
+          </div>
+          <div className="p-4 bg-gradient-to-r from-orange-50 to-yellow-50 rounded-lg border border-orange-200 hover:shadow-md transition-all">
+            <h4 className="font-bold text-sm text-orange-800 mb-2">Freshness Alert</h4>
+            <p className="text-orange-700 font-medium leading-relaxed text-sm">
+              Chicken and Cauliflower showing declining freshness. Optimal usage window: next 2-3 days. Consider
+              incorporating into tomorrow's menu planning.
+            </p>
+          </div>
+          <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border border-green-200 hover:shadow-md transition-all">
+            <h4 className="font-bold text-sm text-green-800 mb-2">Optimization Opportunity</h4>
+            <p className="text-green-700 font-medium leading-relaxed text-sm">
+              Onions and Potatoes maintain excellent freshness levels. These items can be used for longer-term menu
+              planning and bulk preparation strategies.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
