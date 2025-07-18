@@ -1,0 +1,24 @@
+# Python virtual environment
+venv/
+VENV/
+.env/
+.env
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Django/Misc
+db.sqlite3
+*.sqlite3
+
+# Node.js (if using frontend)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
