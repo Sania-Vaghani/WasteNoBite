@@ -9,8 +9,9 @@ from django.views.decorators.csrf import csrf_exempt
 from .models import UserProfile
 import random
 from django.core.mail import send_mail
+from pymongo import MongoClient  # Add this import
+from django.contrib.auth.hashers import make_password, check_password
 
-otp_store = {}  # For demo only. Use DB or cache in production.
 
 def generate_jwt(user):
     payload = {
@@ -26,7 +27,7 @@ def generate_jwt(user):
 def register(request):
     if request.method == 'POST':
         data = json.loads(request.body)
-        username = data.get('email', '').strip().lower()
+        email = data.get('email', '').strip().lower()
         password = data.get('password')
         first_name = data.get('firstName')
         last_name = data.get('lastName')
@@ -38,24 +39,26 @@ def register(request):
         if missing:
             return JsonResponse({'error': f"Missing fields: {', '.join(missing)}"}, status=400)
 
-        print("Checking for user:", username)
-        print("Existing users:", list(User.objects.values_list('username', flat=True)))
-
-        if User.objects.filter(username=username).exists():
+        from django.conf import settings
+        mongo_url = settings.DATABASES['default']['CLIENT']['host']
+        mongo_db = settings.DATABASES['default']['NAME']
+        client = MongoClient(mongo_url)
+        db = client[mongo_db]
+        # Check if user exists
+        if db['users'].find_one({'email': email}):
             return JsonResponse({'error': 'User already exists'}, status=400)
-
-        user = User.objects.create_user(
-            username=username,
-            email=username,
-            password=password,
-            first_name=first_name,
-            last_name=last_name
-        )
-        UserProfile.objects.create(
-            user=user,
-            restaurant=restaurant,
-            phone=phone
-        )
+        # Hash password
+        hashed_password = make_password(password)
+        user_doc = {
+            'email': email,
+            'password': hashed_password,
+            'first_name': first_name,
+            'last_name': last_name,
+            'restaurant': restaurant,
+            'phone': phone,
+            'date_joined': datetime.datetime.utcnow()
+        }
+        db['users'].insert_one(user_doc)
         return JsonResponse({'message': 'User created successfully'}, status=201)
     else:
         return JsonResponse({'error': 'Only POST method is allowed'}, status=405)
@@ -64,21 +67,33 @@ def register(request):
 def login_view(request):
     if request.method == 'POST':
         data = json.loads(request.body)
-        username = data.get('email')
+        email = data.get('email')
         password = data.get('password')
-        user = authenticate(username=username, password=password)
-        if user is not None:
-            profile = getattr(user, 'profile', None)
-            return JsonResponse({'token': generate_jwt(user), 'user': {
-                'id': user.id,
-                'email': user.email,
-                'firstName': user.first_name,
-                'lastName': user.last_name,
-                'restaurant': profile.restaurant if profile else "",
-                'phone': profile.phone if profile else "",
+        from django.conf import settings
+        mongo_url = settings.DATABASES['default']['CLIENT']['host']
+        mongo_db = settings.DATABASES['default']['NAME']
+        client = MongoClient(mongo_url)
+        db = client[mongo_db]
+        user = db['users'].find_one({'email': email})
+        if user and check_password(password, user['password']):
+            # Generate JWT manually (no user.id, so use email)
+            payload = {
+                'email': user['email'],
+                'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=24),
+                'iat': datetime.datetime.utcnow()
+            }
+            token = jwt.encode(payload, settings.SECRET_KEY, algorithm='HS256')
+            return JsonResponse({'token': token, 'user': {
+                'email': user['email'],
+                'firstName': user.get('first_name', ''),
+                'lastName': user.get('last_name', ''),
+                'restaurant': user.get('restaurant', ''),
+                'phone': user.get('phone', ''),
             }})
         else:
             return JsonResponse({'error': 'Invalid credentials'}, status=400)
+    else:
+        return JsonResponse({'error': 'Only POST method is allowed'}, status=405)
 
 def jwt_required(view_func):
     def wrapper(request, *args, **kwargs):
@@ -108,11 +123,27 @@ def send_otp(request):
         email = data.get('email')
         if not email:
             return JsonResponse({'error': 'Email is required'}, status=400)
-        if not User.objects.filter(email=email).exists():
+        # Use pymongo to check if user exists
+        from django.conf import settings
+        mongo_url = settings.DATABASES['default']['CLIENT']['host']
+        mongo_db = settings.DATABASES['default']['NAME']
+        client = MongoClient(mongo_url)
+        db = client[mongo_db]
+        user = db['auth_user'].find_one({'email': email})
+        if not user:
             return JsonResponse({'error': 'No user with this email'}, status=404)
         otp = str(random.randint(100000, 999999))
-        otp_store[email] = otp
-        print(f"[SEND OTP] OTP for {email} is now {otp_store[email]}")
+        # Debug: print OTP records before upsert
+        print(f"[DEBUG][SEND OTP] Before upsert: {list(db['otp_codes'].find({'email': email}))}")
+        # Store OTP in MongoDB (upsert)
+        db['otp_codes'].update_one(
+            {'email': email},
+            {'$set': {'otp': otp, 'created_at': datetime.datetime.utcnow()}},
+            upsert=True
+        )
+        # Debug: print OTP records after upsert
+        print(f"[DEBUG][SEND OTP] After upsert: {list(db['otp_codes'].find({'email': email}))}")
+        print(f"[SEND OTP] OTP for {email} is now {otp}")
         try:
             send_mail(
                 'Your WasteNoBite OTP',
@@ -129,21 +160,55 @@ def send_otp(request):
 
 @csrf_exempt
 def reset_password(request):
+    print("[DEBUG] Entered reset_password endpoint")
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        print("[DEBUG] reset_password request data:", data)
+        email = data.get('email')
+        otp = data.get('otp')
+        new_password = data.get('new_password')
+        from django.conf import settings
+        mongo_url = settings.DATABASES['default']['CLIENT']['host']
+        mongo_db = settings.DATABASES['default']['NAME']
+        client = MongoClient(mongo_url)
+        db = client[mongo_db]
+        otp_record = db['otp_codes'].find_one({'email': email})
+        # Debug: print OTP record before checking
+        print(f"[DEBUG][RESET PASSWORD] OTP record in DB for {email}: {otp_record}")
+        print(f"[DEBUG][RESET PASSWORD] OTP from user: {repr(otp)} (type: {type(otp)})")
+        print(f"[DEBUG][RESET PASSWORD] OTP from DB: {repr(otp_record['otp'] if otp_record else None)} (type: {type(otp_record['otp']) if otp_record else None})")
+        print(f"[RESET PASSWORD] OTP in DB for {email} is {otp_record['otp'] if otp_record else None}, user entered {otp}")
+        if not otp_record or otp_record['otp'] != otp:
+            return JsonResponse({'error': 'Invalid or expired OTP'}, status=400)
+        # Update password in users collection
+        from django.contrib.auth.hashers import make_password
+        hashed_password = make_password(new_password)
+        result = db['users'].update_one(
+            {'email': email},
+            {'$set': {'password': hashed_password}}
+        )
+        if result.matched_count == 0:
+            return JsonResponse({'error': 'No user with this email'}, status=404)
+        # Delete OTP after use
+        db['otp_codes'].delete_one({'email': email})
+        return JsonResponse({'message': 'Password reset successful'})
+    else:
+        return JsonResponse({'error': 'Only POST method is allowed'}, status=405)
+
+@csrf_exempt
+def verify_otp(request):
     if request.method == 'POST':
         data = json.loads(request.body)
         email = data.get('email')
         otp = data.get('otp')
-        new_password = data.get('new_password')
-        print(f"[RESET PASSWORD] OTP for {email} is {otp_store.get(email)}, user entered {otp}")
-        if otp_store.get(email) != otp:
+        from django.conf import settings
+        mongo_url = settings.DATABASES['default']['CLIENT']['host']
+        mongo_db = settings.DATABASES['default']['NAME']
+        client = MongoClient(mongo_url)
+        db = client[mongo_db]
+        otp_record = db['otp_codes'].find_one({'email': email})
+        if not otp_record or otp_record['otp'] != otp:
             return JsonResponse({'error': 'Invalid or expired OTP'}, status=400)
-        try:
-            user = User.objects.get(email=email)
-        except User.DoesNotExist:
-            return JsonResponse({'error': 'No user with this email'}, status=404)
-        user.set_password(new_password)
-        user.save()
-        otp_store.pop(email, None)
-        return JsonResponse({'message': 'Password reset successful'})
+        return JsonResponse({'message': 'OTP verified'})
     else:
         return JsonResponse({'error': 'Only POST method is allowed'}, status=405)

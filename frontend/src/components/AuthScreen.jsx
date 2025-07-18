@@ -12,6 +12,7 @@ import 'react-toastify/dist/ReactToastify.css';
 
 export default function AuthScreen(props) {
   const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [loginForm, setLoginForm] = useState({ email: "", password: "" })
   const [signupForm, setSignupForm] = useState({
     firstName: "",
@@ -23,11 +24,12 @@ export default function AuthScreen(props) {
     phone: "",
   })
   const [error, setError] = useState(null);
+  const [tab, setTab] = useState('login');
 
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post('http://localhost:8000/auth/login/', loginForm);
+      const response = await axios.post('http://localhost:8000/api/login/', loginForm);
       localStorage.setItem('token', response.data.token);
       props.onLogin(response.data.user);
       toast.success('Login successful!');
@@ -41,10 +43,11 @@ export default function AuthScreen(props) {
 
   const handleSignup = async (e) => {
     e.preventDefault();
+    setError(null);
     try {
-      await axios.post('http://localhost:8000/auth/register/', signupForm);
-      await handleLogin({ preventDefault: () => {} });
-      toast.success('Signup and login successful!');
+      await axios.post('http://localhost:8000/api/register/', signupForm);
+      toast.success('Signup successful!');
+      setTab('login'); // Switch to login tab after signup
       setError(null);
     } catch (err) {
       const errorMsg = err.response?.data?.error || "Signup failed";
@@ -78,7 +81,7 @@ export default function AuthScreen(props) {
 
         {/* Auth Card */}
         <Card className="bg-white/90 backdrop-blur-sm shadow-2xl border-0">
-          <Tabs defaultValue="login" className="w-full">
+          <Tabs value={tab} onValueChange={setTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-6 bg-gray-100">
               <TabsTrigger
                 value="login"
@@ -293,22 +296,28 @@ export default function AuthScreen(props) {
                       </button>
                     </div>
                   </div>
-
                   <div className="space-y-2">
-                    <label htmlFor="confirmPassword" className="text-sm font-medium text-gray-700">
+                    <label htmlFor="signupConfirmPassword" className="text-sm font-medium text-gray-700">
                       Confirm Password
                     </label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                       <Input
-                        id="confirmPassword"
-                        type="password"
+                        id="signupConfirmPassword"
+                        type={showConfirmPassword ? "text" : "password"}
                         placeholder="Confirm your password"
                         value={signupForm.confirmPassword}
                         onChange={(e) => setSignupForm({ ...signupForm, confirmPassword: e.target.value })}
-                        className="pl-9 h-10 border-gray-300 focus:border-green-500 focus:ring-green-500"
+                        className="pl-9 pr-9 h-10 border-gray-300 focus:border-green-500 focus:ring-green-500"
                         required
                       />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
                     </div>
                   </div>
 

@@ -3,13 +3,18 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/
 import { Input } from "./ui/Input"
 import { Button } from "./ui/Button"
 import { Mail, Leaf } from "lucide-react"
+import { Eye, EyeOff } from "lucide-react"
 import axios from 'axios';
 
 export default function ForgotPassword({ onBackToLogin }) {
   const [step, setStep] = useState(1); // <-- Add this
   const [email, setEmail] = useState("")
-  const [otp, setOtp] = useState("") // <-- Add this
-  const [newPassword, setNewPassword] = useState("") // <-- Add this
+  const [otp, setOtp] = useState(Array(6).fill(""));
+  const otpInputRefs = Array.from({ length: 6 }, () => useRef(null));
+  const [newPassword, setNewPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [resetSuccess, setResetSuccess] = useState(false) // <-- Add this
@@ -36,16 +41,92 @@ export default function ForgotPassword({ onBackToLogin }) {
     }
   }
 
+  const handleOtpChange = (e, idx) => {
+    const val = e.target.value.replace(/[^0-9]/g, "");
+    if (!val) return;
+    const newOtp = [...otp];
+    newOtp[idx] = val[val.length - 1];
+    setOtp(newOtp);
+    if (idx < 5 && val) {
+      otpInputRefs[idx + 1].current.focus();
+    }
+  };
+
+  const handleOtpKeyDown = (e, idx) => {
+    if (e.key === "Backspace") {
+      if (otp[idx]) {
+        const newOtp = [...otp];
+        newOtp[idx] = "";
+        setOtp(newOtp);
+      } else if (idx > 0) {
+        otpInputRefs[idx - 1].current.focus();
+      }
+    } else if (e.key === "ArrowLeft" && idx > 0) {
+      otpInputRefs[idx - 1].current.focus();
+    } else if (e.key === "ArrowRight" && idx < 5) {
+      otpInputRefs[idx + 1].current.focus();
+    }
+  };
+
+  const handleOtpPaste = (e) => {
+    const paste = e.clipboardData.getData("text").replace(/[^0-9]/g, "");
+    if (paste.length === 6) {
+      setOtp(paste.split(""));
+      setTimeout(() => {
+        otpInputRefs[5].current.focus();
+      }, 0);
+    }
+    e.preventDefault();
+  };
+
   // Dummy handlers for the other steps (implement backend as needed)
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError("");
-    // TODO: Implement OTP verification and password reset API call
-    // On success:
-    setResetSuccess(true);
-    setStep(3);
-    setLoading(false);
+    try {
+      const res = await axios.post('http://localhost:8000/api/verify_otp', {
+        email,
+        otp: otp.join("")
+      });
+      if (res.status === 200) {
+        setStep(3); // Proceed to new password form
+      } else {
+        setError(res.data.error || "Invalid or expired OTP");
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || "Invalid or expired OTP");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    if (newPassword !== confirmPassword) {
+      setError("Passwords do not match");
+      setLoading(false);
+      return;
+    }
+    try {
+      const res = await axios.post('http://localhost:8000/api/reset_password', {
+        email,
+        otp: otp.join(""),
+        new_password: newPassword
+      });
+      if (res.status === 200) {
+        setResetSuccess(true);
+        setStep(4);
+      } else {
+        setError(res.data.error || "Failed to reset password.");
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || "Network error. Try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleResendOtp = async () => {
@@ -125,38 +206,32 @@ export default function ForgotPassword({ onBackToLogin }) {
               <form onSubmit={handleVerifyOtp} className="space-y-6">
                 <div className="space-y-2">
                   <label htmlFor="otp" className="text-sm font-medium text-gray-700">OTP</label>
-                  <Input
-                    id="otp"
-                    type="text"
-                    placeholder="Enter OTP"
-                    value={otp}
-                    onChange={e => setOtp(e.target.value)}
-                    className="h-12 border-gray-300 focus:border-green-500 focus:ring-green-500"
-                    required
-                    ref={otpInputRef}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label htmlFor="newPassword" className="text-sm font-medium text-gray-700">New Password</label>
-                  <Input
-                    id="newPassword"
-                    type="password"
-                    placeholder="Enter new password"
-                    value={newPassword}
-                    onChange={e => setNewPassword(e.target.value)}
-                    className="h-12 border-gray-300 focus:border-green-500 focus:ring-green-500"
-                    required
-                  />
+                  <div className="flex space-x-2 justify-center" onPaste={handleOtpPaste}>
+                    {otp.map((digit, idx) => (
+                      <input
+                        key={idx}
+                        ref={otpInputRefs[idx]}
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={1}
+                        value={digit}
+                        onChange={e => handleOtpChange(e, idx)}
+                        onKeyDown={e => handleOtpKeyDown(e, idx)}
+                        className="w-12 h-12 text-center text-xl rounded-lg border border-gray-300 focus:border-green-500 focus:ring-2 focus:ring-green-200 shadow-sm transition-all bg-white"
+                        autoFocus={idx === 0}
+                        tabIndex={idx + 1}
+                      />
+                    ))}
+                  </div>
                 </div>
                 {error && <div className="text-red-500 text-sm">{error}</div>}
-                {resetSuccess && <div className="text-green-600 text-sm">Password reset successful! You can now log in.</div>}
                 <div className="flex justify-between items-center">
                   <Button
                     type="submit"
                     className="h-12 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-medium shadow-lg"
-                    disabled={loading || !otp || !newPassword}
+                    disabled={loading || otp.some(d => !d)}
                   >
-                    {loading ? "Resetting..." : "Reset Password"}
+                    {loading ? "Verifying..." : "Verify OTP"}
                   </Button>
                   <Button
                     type="button"
@@ -171,6 +246,62 @@ export default function ForgotPassword({ onBackToLogin }) {
               </form>
             )}
             {step === 3 && (
+              <form onSubmit={handleResetPassword} className="space-y-6">
+                <div className="space-y-2">
+                  <label htmlFor="newPassword" className="text-sm font-medium text-gray-700">New Password</label>
+                  <div className="relative">
+                    <Input
+                      id="newPassword"
+                      type={showNewPassword ? "text" : "password"}
+                      placeholder="Enter new password"
+                      value={newPassword}
+                      onChange={e => setNewPassword(e.target.value)}
+                      className="h-12 border-gray-300 focus:border-green-500 focus:ring-green-500 pr-12"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(v => !v)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      tabIndex={-1}
+                    >
+                      {showNewPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="confirmPassword" className="text-sm font-medium text-gray-700">Confirm Password</label>
+                  <div className="relative">
+                    <Input
+                      id="confirmPassword"
+                      type={showConfirmPassword ? "text" : "password"}
+                      placeholder="Confirm new password"
+                      value={confirmPassword}
+                      onChange={e => setConfirmPassword(e.target.value)}
+                      className="h-12 border-gray-300 focus:border-green-500 focus:ring-green-500 pr-12"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(v => !v)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      tabIndex={-1}
+                    >
+                      {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
+                  </div>
+                </div>
+                {error && <div className="text-red-500 text-sm">{error}</div>}
+                <Button
+                  type="submit"
+                  className="w-full h-12 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-medium shadow-lg"
+                  disabled={loading || !newPassword || !confirmPassword}
+                >
+                  {loading ? "Resetting..." : "Reset Password"}
+                </Button>
+              </form>
+            )}
+            {step === 4 && (
               <div className="text-center text-green-600 font-medium">Password reset successful! <a href="/" className="underline">Back to Login</a></div>
             )}
           </CardContent>
