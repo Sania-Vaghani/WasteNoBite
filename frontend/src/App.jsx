@@ -40,6 +40,9 @@ import SpoilagePrediction from "./components/SpoilagePrediction"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "./components/ui/Dialog"
 import { Input } from "./components/ui/Input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/ui/Select"
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import ForgotPassword from "./components/ForgotPassword"; // Import this at the top
 
 export default function WasteNoBiteApp() {
   const [currentScreen, setCurrentScreen] = useState("splash")
@@ -293,7 +296,24 @@ export default function WasteNoBiteApp() {
 
   if (currentScreen === "auth") {
     return (
-      <AuthScreen onLogin={handleLogin} />
+      <>
+        <AuthScreen
+          onLogin={handleLogin}
+          onForgotPassword={() => setCurrentScreen("forgot")}
+        />
+        <ToastContainer position="top-right" autoClose={3000} />
+      </>
+    )
+  }
+
+  if (currentScreen === "forgot") {
+    return (
+      <>
+        <ForgotPassword
+          onBackToLogin={() => setCurrentScreen("auth")}
+        />
+        <ToastContainer position="top-right" autoClose={3000} />
+      </>
     )
   }
 

@@ -1,4 +1,0 @@
-Django>=5.2.4
-djongo
-dnspython
-python-dotenv

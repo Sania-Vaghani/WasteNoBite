@@ -6,6 +6,9 @@ import { Button } from "./ui/Button"
 import { Input } from "./ui/Input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/Tabs"
 import { Leaf, Eye, EyeOff, Mail, Lock, User, Building, Phone } from "lucide-react"
+import axios from 'axios';
+import { toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 export default function AuthScreen(props) {
   const [showPassword, setShowPassword] = useState(false)
@@ -19,50 +22,36 @@ export default function AuthScreen(props) {
     restaurant: "",
     phone: "",
   })
+  const [error, setError] = useState(null);
 
-  const handleLogin = (e) => {
-    e.preventDefault()
-    // Simulate login - in real app, this would validate credentials
-    const userData = {
-      id: 1,
-      firstName: "John",
-      lastName: "Smith",
-      email: loginForm.email || "john.smith@restaurant.com",
-      restaurant: "Bella Vista Restaurant",
-      phone: "+1 (555) 123-4567",
-      role: "Kitchen Manager",
-      avatar: "https://via.placeholder.com/100x100",
-      joinDate: "January 2023",
-      stats: {
-        wasteReduced: "32%",
-        costSaved: "$2,847",
-        efficiency: "94%",
-      },
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await axios.post('http://localhost:8000/auth/login/', loginForm);
+      localStorage.setItem('token', response.data.token);
+      props.onLogin(response.data.user);
+      toast.success('Login successful!');
+      setError(null);
+    } catch (err) {
+      const errorMsg = err.response?.data?.error || "Login failed";
+      setError(errorMsg);
+      toast.error(errorMsg);
     }
-    props.onLogin(userData)
-  }
+  };
 
-  const handleSignup = (e) => {
-    e.preventDefault()
-    // Simulate signup - in real app, this would create account
-    const userData = {
-      id: 2,
-      firstName: signupForm.firstName,
-      lastName: signupForm.lastName,
-      email: signupForm.email,
-      restaurant: signupForm.restaurant,
-      phone: signupForm.phone,
-      role: "Kitchen Manager",
-      avatar: "https://via.placeholder.com/100x100",
-      joinDate: "January 2025",
-      stats: {
-        wasteReduced: "0%",
-        costSaved: "$0",
-        efficiency: "0%",
-      },
+  const handleSignup = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post('http://localhost:8000/auth/register/', signupForm);
+      await handleLogin({ preventDefault: () => {} });
+      toast.success('Signup and login successful!');
+      setError(null);
+    } catch (err) {
+      const errorMsg = err.response?.data?.error || "Signup failed";
+      setError(errorMsg);
+      toast.error(errorMsg);
     }
-    props.onLogin(userData)
-  }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-yellow-50 to-red-50 flex items-center justify-center p-4">
@@ -161,9 +150,13 @@ export default function AuthScreen(props) {
                       <input type="checkbox" className="rounded border-gray-300 text-green-600 focus:ring-green-500" />
                       <span className="ml-2 text-gray-600">Remember me</span>
                     </label>
-                    <a href="#" className="text-green-600 hover:text-green-700 font-medium">
+                    <button
+                      type="button"
+                      className="text-green-600 hover:text-green-700 font-medium"
+                      onClick={props.onForgotPassword}
+                    >
                       Forgot password?
-                    </a>
+                    </button>
                   </div>
 
                   <Button
