@@ -129,7 +129,7 @@ def send_otp(request):
         mongo_db = settings.DATABASES['default']['NAME']
         client = MongoClient(mongo_url)
         db = client[mongo_db]
-        user = db['auth_user'].find_one({'email': email})
+        user = db['users'].find_one({'email': email})
         if not user:
             return JsonResponse({'error': 'No user with this email'}, status=404)
         otp = str(random.randint(100000, 999999))
