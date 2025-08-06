@@ -170,9 +170,6 @@ export default function AuthScreen(props) {
                   </Button>
                 </form>
 
-                <div className="mt-6 text-center">
-                  <p className="text-sm text-gray-600">Demo credentials: any email and password</p>
-                </div>
               </CardContent>
             </TabsContent>
 
