@@ -1,16 +1,21 @@
 import json
 import jwt
-import datetime
+from datetime import datetime, timedelta
 from django.http import JsonResponse
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
 from .models import UserProfile
-import random
 from django.core.mail import send_mail
 from pymongo import MongoClient  # Add this import
 from django.contrib.auth.hashers import make_password, check_password
+from django.views.decorators.http import require_http_methods
+from django.http import JsonResponse
+import os
+import pickle
+import pandas as pd
+import json
 
 
 def generate_jwt(user):
@@ -79,8 +84,8 @@ def login_view(request):
             # Generate JWT manually (no user.id, so use email)
             payload = {
                 'email': user['email'],
-                'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=24),
-                'iat': datetime.datetime.utcnow()
+                'exp': datetime.utcnow() + timedelta(hours=24),
+                'iat': datetime.utcnow()
             }
             token = jwt.encode(payload, settings.SECRET_KEY, algorithm='HS256')
             return JsonResponse({'token': token, 'user': {
@@ -212,3 +217,94 @@ def verify_otp(request):
         return JsonResponse({'message': 'OTP verified'})
     else:
         return JsonResponse({'error': 'Only POST method is allowed'}, status=405)
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def predict_category_sales(request):
+    try:
+        data = json.loads(request.body)
+        category = data.get("category")
+        if not category:
+            return JsonResponse({"error": "Category is required"}, status=400)
+
+        # ✅ Load model and encoders
+        with open(r"C:\Users\Hetansh Panchal\Desktop\GroupProject\WasteNoBite\ml_model\category_sales_model.pkl", "rb") as f:
+            model = pickle.load(f)
+        with open(r"C:\Users\Hetansh Panchal\Desktop\GroupProject\WasteNoBite\ml_model\label_encoders.pkl", "rb") as f:
+            category_encoder, day_encoder = pickle.load(f)
+
+        # ✅ Normalize input category
+        category = category.strip().title()
+
+        # ✅ Validate category
+        trained_categories = list(category_encoder.classes_)
+        if category not in trained_categories:
+            return JsonResponse({"error": f"Unseen category label: {category}"}, status=400)
+
+        # ✅ Connect to MongoDB
+        mongo_url = settings.DATABASES['default']['CLIENT']['host']
+        mongo_db = settings.DATABASES['default']['NAME']
+        client = MongoClient(mongo_url)
+        db = client[mongo_db]
+        sales_collection = db["Sales"]
+
+        # ✅ Fetch latest date in the collection for this category
+        latest_doc = sales_collection.find_one(
+            {"category": category},
+            sort=[("date", -1)]
+        )
+        if not latest_doc:
+            return JsonResponse({"error": "No sales data found for this category"}, status=404)
+
+        latest_date = latest_doc["date"]
+
+        # ✅ Calculate 7-day range ending on latest day
+        end_date = latest_date
+        start_date = end_date - timedelta(days=6)
+
+        # ✅ Fetch data for that 7-day range
+        mongo_docs = list(sales_collection.find({
+            "category": category,
+            "date": {"$gte": start_date, "$lte": end_date}
+        }))
+
+        if not mongo_docs:
+            return JsonResponse({"error": "No weekly sales data found for this category"}, status=404)
+
+        # ✅ Load into DataFrame
+        df = pd.DataFrame(mongo_docs)
+        df["day_of_week"] = pd.to_datetime(df["date"]).dt.day_name().str[:3]  # 'Mon', 'Tue', ...
+
+        # ✅ Loop over each weekday to predict
+        weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        results = []
+
+        for day in weekdays:
+            if day not in day_encoder.classes_:
+                return JsonResponse({"error": f"Unseen day label: {day}"}, status=400)
+
+            # Encode features
+            day_encoded = day_encoder.transform([day])[0]
+            category_encoded = category_encoder.transform([category])[0]
+
+            # Average sales_percent from filtered data
+            filtered_df = df[df["day_of_week"] == day]
+            sales_percent = filtered_df["sales_percent"].mean()
+
+            if pd.isna(sales_percent):
+                sales_percent = 0.0
+
+            # Predict
+            X = [[category_encoded, day_encoded, sales_percent]]
+            prediction = model.predict(X)[0]
+
+            results.append({
+                "day": day,
+                "actual_sales_percent": round(sales_percent, 2),
+                "target_sales_percent": round(prediction, 2)
+            })
+
+        return JsonResponse({"results": results})
+
+    except Exception as e:
+        return JsonResponse({"error": f"Server Error: {str(e)}"}, status=500)
