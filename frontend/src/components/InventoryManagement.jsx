@@ -24,6 +24,7 @@ import {
   AlertTriangle,
   CheckCircle,
   Clock,
+  Plus,
 } from "lucide-react";
 
 export default function InventoryManagement(props) {
@@ -33,6 +34,11 @@ export default function InventoryManagement(props) {
   const [qualityFilter, setQualityFilter] = useState("all");
   const [downloadMonths, setDownloadMonths] = useState([12]);
   const [isDownloadOpen, setIsDownloadOpen] = useState(false);
+
+  // Add Usage dialog state
+  const [isUsageOpen, setIsUsageOpen] = useState(false);
+  const [selectedUsageItem, setSelectedUsageItem] = useState("");
+  const [usageQuantity, setUsageQuantity] = useState("");
 
   const inventoryItems = [
     {
@@ -232,6 +238,17 @@ export default function InventoryManagement(props) {
     setIsDownloadOpen(false);
   };
 
+  // Handle usage submission (for now, just log)
+  const handleUsageSubmit = (e) => {
+    e.preventDefault();
+    if (!selectedUsageItem || !usageQuantity) return;
+    // You can replace this with an API call or state update
+    alert(`Used ${usageQuantity} of ${selectedUsageItem}`);
+    setIsUsageOpen(false);
+    setSelectedUsageItem("");
+    setUsageQuantity("");
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -291,6 +308,61 @@ export default function InventoryManagement(props) {
         {/* Action Bar */}
         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
           <div className="flex items-center gap-2">
+            {/* Add Usage Button and Dialog */}
+            <Dialog open={isUsageOpen} onOpenChange={setIsUsageOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="border-green-200 text-green-700 hover:bg-green-50 bg-transparent flex items-center">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Usage
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Add Item Usage</DialogTitle>
+                  <DialogDescription>
+                    Select an item and enter the quantity used.
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleUsageSubmit} className="space-y-6 py-4">
+                  <div className="space-y-3">
+                    <label className="block text-sm font-medium mb-1">Item Name</label>
+                    <Select value={selectedUsageItem} onValueChange={setSelectedUsageItem}>
+                      <SelectTrigger className="w-full h-10 border-gray-200">
+                        <SelectValue placeholder="Select item" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {inventoryItems.map((item) => (
+                          <SelectItem key={item.id} value={item.name}>
+                            {item.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-3">
+                    <label className="block text-sm font-medium mb-1">Quantity Used</label>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={usageQuantity}
+                      onChange={(e) => setUsageQuantity(e.target.value)}
+                      placeholder="Enter quantity"
+                      className="w-full h-10 border-gray-200"
+                      required
+                    />
+                  </div>
+                  <div className="flex gap-3 justify-end">
+                    <Button variant="outline" type="button" onClick={() => setIsUsageOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="submit" className="bg-green-600 hover:bg-green-700 text-white">
+                      Save Usage
+                    </Button>
+                  </div>
+                </form>
+              </DialogContent>
+            </Dialog>
+            {/* Grid/Table view buttons */}
             <div className="flex bg-gray-100 rounded-lg p-1">
               <button
                 onClick={() => setViewMode("grid")}
@@ -316,8 +388,8 @@ export default function InventoryManagement(props) {
               </button>
             </div>
           </div>
-
           <div className="flex items-center gap-2">
+            {/* Download Sales Data Button and Dialog */}
             <Dialog open={isDownloadOpen} onOpenChange={setIsDownloadOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" className="border-blue-200 text-blue-700 hover:bg-blue-50 bg-transparent">
