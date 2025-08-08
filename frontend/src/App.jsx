@@ -54,6 +54,8 @@ export default function WasteNoBiteApp() {
   const [selectedDish, setSelectedDish] = useState("")
   const [orderQuantity, setOrderQuantity] = useState("1")
   const [orderStatus, setOrderStatus] = useState("") // '', 'loading', 'success', 'error'
+  const [selectedCategory, setSelectedCategory] = useState("Fruit");
+  const [predictedSalesData, setPredictedSalesData] = useState([]);
 
   const handlePlaceOrder = () => {
     if (!selectedDish) return
@@ -99,6 +101,34 @@ export default function WasteNoBiteApp() {
     setCurrentScreen("auth")
   }
 
+  useEffect(() => {
+    if (!selectedCategory) return;
+
+    const fetchPrediction = async () => {
+      try {
+        const res = await fetch("http://localhost:8000/api/predict-category-sales/", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ category: selectedCategory }),
+        });
+
+        const data = await res.json();
+        if (data.results) {
+          setPredictedSalesData(data.results);
+        } else {
+          console.error("Error fetching predictions:", data.error);
+          setPredictedSalesData([]);
+        }
+      } catch (err) {
+        console.error("API error:", err);
+      }
+    };
+
+    fetchPrediction();
+  }, [selectedCategory]);
+
   // Updated overview stats according to requirements
   const overviewStats = [
     {
@@ -141,17 +171,6 @@ export default function WasteNoBiteApp() {
       bgGradient: "from-purple-50 to-pink-50",
       borderColor: "border-purple-200",
     },
-  ]
-
-  // Improved Predicted Sales data with better structure
-  const predictedSalesData = [
-    { day: "Mon", sales: 85, target: 80 },
-    { day: "Tue", sales: 92, target: 85 },
-    { day: "Wed", sales: 78, target: 82 },
-    { day: "Thu", sales: 95, target: 88 },
-    { day: "Fri", sales: 110, target: 100 },
-    { day: "Sat", sales: 105, target: 95 },
-    { day: "Sun", sales: 88, target: 85 },
   ]
 
   // Category breakdown for detailed analysis
@@ -575,46 +594,48 @@ export default function WasteNoBiteApp() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="p-6">
+                  <div className="mb-4">
+                    <label className="text-sm font-medium text-gray-700 mr-2">Category:</label>
+                    <select
+                      className="border p-1 rounded"
+                      value={selectedCategory}
+                      onChange={(e) => setSelectedCategory(e.target.value)}
+                    >
+                      <option value="">Select a category</option>
+                      <option value="Dairy">Dairy</option>
+                      <option value="Fruit">Fruit</option>
+                      <option value="Vegetable">Vegetable</option>
+                      <option value="Meat">Meat</option>
+                      <option value="Seafood">Seafood</option>
+                    </select>
+                  </div>
+
                   <div className="space-y-6">
-                    {/* Main Bar Chart */}
-                    <div className="relative">
-                      <div className="flex items-end justify-between h-80 bg-gradient-to-t from-gray-50 to-white rounded-lg p-4 border border-gray-200">
-                        {/* 100% reference line at the top of the bar area */}
-                        <div style={{
-                          position: 'absolute',
-                          left: 32, // p-4 = 1rem = 16px, left padding
-                          right: 32, // right padding
-                          top: 32, // p-4 = 16px, top padding
-                          height: '2px',
-                          background: 'rgba(59,130,246,0.25)', // blue-500 with opacity
-                          zIndex: 5,
-                        }} />
+                    <div className="relative space-y-4">
+                      <div className="flex items-end justify-between h-96 bg-gradient-to-t from-gray-50 to-white rounded-lg pl-8 p-8 pb-4 border border-gray-200">
                         {predictedSalesData.map((day, index) => {
-                          const maxBarHeight = 288; // px, matches h-72
-                          const salesHeight = (day.sales / 100) * maxBarHeight;
-                          const targetHeight = (day.target / 100) * maxBarHeight;
+                          const maxBarHeight = 288 - 16;
+                          const salesHeight = (day.actual_sales_percent / 100) * maxBarHeight;
+                          const targetHeight = (day.target_sales_percent / 100) * maxBarHeight;
 
                           return (
                             <div key={index} className="flex flex-col items-center space-y-2 flex-1">
                               <div className="flex items-end space-x-1 h-72 justify-end">
-                                {/* Target bar (lighter) */}
                                 <div
                                   className="w-4 bg-gradient-to-t from-gray-300 to-gray-400 rounded-t-sm shadow-sm opacity-60"
                                   style={{ height: `${targetHeight}px` }}
-                                  title={`Target: ${day.target}%`}
+                                  title={`Target: ${day.target_sales_percent}%`}
                                 ></div>
-                                {/* Actual sales bar */}
                                 <div
                                   className={`w-6 rounded-t-sm shadow-lg ${
-                                    day.sales >= day.target
+                                    day.actual_sales_percent >= day.target_sales_percent
                                       ? "bg-gradient-to-t from-green-500 to-emerald-500"
                                       : "bg-gradient-to-t from-orange-500 to-red-500"
                                   }`}
-                                  style={{ height: `${salesHeight}px`, position: 'relative' }}
-                                  title={`Sales: ${day.sales}%`}
+                                  style={{ height: `${salesHeight}px`, position: "relative" }}
+                                  title={`Sales: ${day.actual_sales_percent}%`}
                                 >
-                                  {/* Cap indicator if bar is capped */}
-                                  {day.sales / 100 > 1 && (
+                                  {day.actual_sales_percent / 100 > 1 && (
                                     <div
                                       style={{
                                         position: "absolute",
@@ -623,7 +644,7 @@ export default function WasteNoBiteApp() {
                                         transform: "translateX(-50%)",
                                         width: "1.5rem",
                                         height: "0.5rem",
-                                        background: "#10b981", // green-500
+                                        background: "#10b981",
                                         borderRadius: "0.25rem 0.25rem 0 0",
                                         boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
                                         zIndex: 10,
@@ -635,16 +656,15 @@ export default function WasteNoBiteApp() {
                               </div>
                               <span className="text-xs font-medium text-gray-700">{day.day}</span>
                               <div className="text-center">
-                                <div className="text-sm font-bold text-gray-900">{day.sales}%</div>
-                                <div className="text-xs text-gray-500">vs {day.target}%</div>
+                                <div className="text-sm font-bold text-gray-900">{day.actual_sales_percent}%</div>
+                                <div className="text-xs text-gray-500">vs {day.target_sales_percent}%</div>
                               </div>
                             </div>
-                          )
+                          );
                         })}
                       </div>
 
-                      {/* Y-axis labels */}
-                      <div className="absolute left-0 top-4 h-72 flex flex-col justify-between text-xs text-gray-500">
+                      <div className="absolute px-4 top-0 h-72 flex flex-col justify-between text-xs text-gray-500">
                         <span>100%</span>
                         <span>80%</span>
                         <span>60%</span>
@@ -654,7 +674,6 @@ export default function WasteNoBiteApp() {
                       </div>
                     </div>
 
-                    {/* Legend and Summary */}
                     <div className="space-y-4">
                       <div className="flex justify-center space-x-6 text-xs">
                         <div className="flex items-center space-x-2">
@@ -670,27 +689,11 @@ export default function WasteNoBiteApp() {
                           <span>Target</span>
                         </div>
                       </div>
-
-                      {/* Category Breakdown */}
-                      <div className="bg-gradient-to-r from-gray-50 to-white rounded-lg p-4 border border-gray-200">
-                        <h4 className="font-bold text-sm text-gray-900 mb-3">Sales by Category</h4>
-                        <div className="grid grid-cols-5 gap-3">
-                          {salesCategories.map((category, index) => (
-                            <div key={index} className="text-center">
-                              <div
-                                className={`w-full h-16 ${category.color} rounded-lg shadow-sm mb-2 flex items-end justify-center pb-2`}
-                              >
-                                <span className="text-white text-xs font-bold">{category.percentage}%</span>
-                              </div>
-                              <span className="text-xs font-medium text-gray-700">{category.name}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
                     </div>
                   </div>
                 </CardContent>
               </Card>
+
 
               {/* Upcoming Expirations */}
               <Card className="bg-white/80 backdrop-blur-sm border-orange-200 shadow-xl">

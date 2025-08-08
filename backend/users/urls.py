@@ -8,4 +8,5 @@ urlpatterns = [
     path('send-otp', views.send_otp, name='send_otp'),
     path('reset_password', views.reset_password, name='reset_password'),
     path('verify_otp', views.verify_otp, name='verify_otp'),
+    path('predict-category-sales/', views.predict_category_sales, name='predict_category_sales'),
 ]
