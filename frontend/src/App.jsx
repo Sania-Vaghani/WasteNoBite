@@ -336,11 +336,6 @@ export default function WasteNoBiteApp() {
     )
   }
 
-  
-
-  
-
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-yellow-50 to-red-50">
       {/* Compact Header */}

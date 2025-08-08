@@ -217,6 +217,10 @@ def verify_otp(request):
         return JsonResponse({'message': 'OTP verified'})
     else:
         return JsonResponse({'error': 'Only POST method is allowed'}, status=405)
+    
+PROJECT_ROOT = os.path.dirname(settings.BASE_DIR)  # Go up one level
+MODEL_PATH = os.path.join(PROJECT_ROOT, "ml_model", "category_sales_model.pkl")
+ENCODER_PATH = os.path.join(PROJECT_ROOT, "ml_model", "label_encoders.pkl")
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -227,10 +231,10 @@ def predict_category_sales(request):
         if not category:
             return JsonResponse({"error": "Category is required"}, status=400)
 
-        # ✅ Load model and encoders
-        with open(r"C:\Users\Hetansh Panchal\Desktop\GroupProject\WasteNoBite\ml_model\category_sales_model.pkl", "rb") as f:
+        # ✅ Load model and encoders dynamically
+        with open(MODEL_PATH, "rb") as f:
             model = pickle.load(f)
-        with open(r"C:\Users\Hetansh Panchal\Desktop\GroupProject\WasteNoBite\ml_model\label_encoders.pkl", "rb") as f:
+        with open(ENCODER_PATH, "rb") as f:
             category_encoder, day_encoder = pickle.load(f)
 
         # ✅ Normalize input category
