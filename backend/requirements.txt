@@ -5,3 +5,4 @@ dnspython
 python-dotenv
 PyJWT
 django-cors-headers
+reportlab==4.0.4

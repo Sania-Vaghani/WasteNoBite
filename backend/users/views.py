@@ -16,6 +16,7 @@ import os
 import pickle
 import pandas as pd
 import json
+import random
 
 
 def generate_jwt(user):
@@ -311,4 +312,254 @@ def predict_category_sales(request):
         return JsonResponse({"results": results})
 
     except Exception as e:
+        return JsonResponse({"error": f"Server Error: {str(e)}"}, status=500)
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_inventory_items(request):
+    try:
+        # Get MongoDB connection details from environment variables
+        mongo_url = os.getenv('MONGO_URL')
+        mongo_db = os.getenv('MONGO_DB')
+        
+        print(f"[DEBUG] MONGO_URL: {mongo_url}")
+        print(f"[DEBUG] MONGO_DB: {mongo_db}")
+        
+        if not mongo_url or not mongo_db:
+            print("[DEBUG] MongoDB configuration missing")
+            return JsonResponse({"error": "MongoDB configuration not found in environment variables"}, status=500)
+        
+        # Connect to MongoDB using environment variables
+        client = MongoClient(mongo_url)
+        db = client[mongo_db]
+        
+        # List all collections in the database
+        collections = db.list_collection_names()
+        print(f"[DEBUG] Available collections: {collections}")
+        
+        # Try different possible collection names
+        possible_collections = ["inventory_items", "inventery_items", "inventory", "items"]
+        inventory_collection = None
+        collection_name = None
+        
+        for col_name in possible_collections:
+            if col_name in collections:
+                inventory_collection = db[col_name]
+                collection_name = col_name
+                print(f"[DEBUG] Found collection: {col_name}")
+                break
+        
+        if not inventory_collection:
+            print(f"[DEBUG] No inventory collection found. Available collections: {collections}")
+            return JsonResponse({"error": f"No inventory collection found. Available collections: {collections}"}, status=404)
+
+        # Fetch all inventory items
+        inventory_items = list(inventory_collection.find({}, {'_id': 0}))  # Exclude MongoDB _id
+        print(f"[DEBUG] Found {len(inventory_items)} items in collection '{collection_name}'")
+        
+        # Show first item structure if available
+        if inventory_items:
+            print(f"[DEBUG] First item structure: {inventory_items[0]}")
+        else:
+            print("[DEBUG] Collection is empty")
+
+        # Process each item to calculate remaining life and format data
+        processed_items = []
+        for item in inventory_items:
+            print(f"[DEBUG] Processing item: {item.get('Item Name', 'Unknown')}")
+            
+            # Use Max lifespan from MongoDB for remaining life
+            max_lifespan = item.get('Max lifespan', 0)
+            remaining_life = max_lifespan  # Use the actual max lifespan value
+            
+            # Use Freshness Level from MongoDB for quality and determine color
+            freshness_level = item.get('Freshness Level', '').lower()
+            quality = freshness_level if freshness_level else "Unknown"
+            
+            # Determine quality color based on freshness level
+            quality_color = "gray"  # default
+            if freshness_level == "fresh":
+                quality_color = "green"
+            elif freshness_level == "near_expiry":
+                quality_color = "yellow"
+            elif freshness_level == "expired":
+                quality_color = "red"
+            
+            # Calculate quantity: Quantity Purchased - Quantity Used
+            quantity_purchased = item.get('Quantity Purchased', 0)
+            quantity_used = item.get('Quantity Used', 0)
+            current_quantity = quantity_purchased - quantity_used
+            
+            # Add stock status message
+            stock_status = ""
+            if current_quantity <= 0:
+                stock_status = f"Inventory Item to buy - {item.get('Item Name', 'Unknown')} as we are out of stock"
+            
+            # Map image name to file path - handle special cases and extensions
+            item_name = item.get('Item Name', '').lower()
+            
+            # Comprehensive mapping for items that might have different names in images
+            image_mapping = {
+                'yogurt': 'yougurt.webp',  # Handle the typo in filename
+                'yougurt': 'yougurt.webp',
+                'broccoli': 'brocolli.png',  # Handle the typo in filename
+                'brocolli': 'brocolli.png',
+                'pork chop': 'pork.png',  # Map to existing pork image
+                'porkchop': 'pork.png',
+                'chicken breast': 'chicken.png',  # Map to existing chicken image
+                'chickenbreast': 'chicken.png',
+                'beef steak': 'beef.png',  # Map to existing beef image
+                'beefsteak': 'beef.png',
+                'tomato': 'tomatoes.png',  # Map to existing tomatoes image
+                'tomatoes': 'tomatoes.png',
+                'onion': 'onions.png',  # Map to existing onions image
+                'onions': 'onions.png',
+                'bell pepper': 'capsicum.png',  # Map to existing capsicum image
+                'bellpepper': 'capsicum.png',
+                'capsicum': 'capsicum.png',
+            }
+            
+            # Check if we have a special mapping
+            if item_name in image_mapping:
+                image_path = f"http://localhost:8000/media/images/{image_mapping[item_name]}"
+            else:
+                # Default to PNG for most items
+                image_path = f"http://localhost:8000/media/images/{item_name}.png"
+            
+            print(f"[DEBUG] Item: {item_name}, Image path: {image_path}")
+            print(f"[DEBUG] Quality: {quality}, Remaining Life: {remaining_life}, Current Quantity: {current_quantity}")
+            if stock_status:
+                print(f"[DEBUG] Stock Status: {stock_status}")
+            
+            processed_item = {
+                'id': str(hash(item.get('Item Name', ''))),  # Use hash as ID
+                'name': item.get('Item Name', ''),
+                'category': item.get('Category', ''),
+                'quantity': current_quantity,  # Quantity Purchased - Quantity Used
+                'remainingLife': remaining_life,  # Use Max lifespan from MongoDB
+                'lastUpdated': '1 hour ago',  # You can calculate this from actual data
+                'quality': quality,  # Use Freshness Level from MongoDB
+                'qualityColor': quality_color,  # Add quality color
+                'image': image_path,
+                'stockStatus': stock_status,  # Add stock status message
+                'purchaseDate': item.get('Purchase Date'),
+                'expiryDate': item.get('Expiry Date'),
+                'storageTemperature': item.get('Storage Temperature'),
+                'humidity': item.get('Humidity'),
+                'quantityPurchased': item.get('Quantity Purchased', 0),
+                'quantityUsed': item.get('Quantity Used', 0),
+                'quantityWasted': item.get('Quantity Wasted', 0),
+                'costPerUnit': item.get('Cost Per Unit', 0),
+                'spoilageRate': item.get('Spoilage rate', 0),
+                'freshnessPercentage': item.get('Freshness Percentage', 0),
+                'estimatedExpiryWasted': item.get('Estimated expiry wasted', 0),
+                'maxLifespan': item.get('Max lifespan', 0),
+                'highRisk': item.get('High Risk', 0),
+                'freshnessLevel': item.get('Freshness Level', '')
+            }
+            processed_items.append(processed_item)
+
+        print(f"[DEBUG] Processed {len(processed_items)} items")
+        return JsonResponse({'items': processed_items})
+
+    except Exception as e:
+        print(f"[DEBUG] Error in get_inventory_items: {str(e)}")
+        return JsonResponse({"error": f"Server Error: {str(e)}"}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def add_inventory_usage(request):
+    """Decrement available quantity by incrementing 'Quantity Used' for an item.
+
+    Request JSON:
+      {
+        "itemName": "Yogurt",
+        "quantity": 3
+      }
+
+    Rules:
+      - Reject if requested quantity exceeds available quantity
+      - Reject if item not found
+      - Case-insensitive match on 'Item Name'
+    """
+    try:
+        body = json.loads(request.body or "{}")
+        item_name = (body.get("itemName") or "").strip()
+        try:
+            usage_quantity = int(body.get("quantity", 0))
+        except (TypeError, ValueError):
+            usage_quantity = 0
+
+        if not item_name:
+            return JsonResponse({"error": "'itemName' is required"}, status=400)
+        if usage_quantity <= 0:
+            return JsonResponse({"error": "'quantity' must be a positive integer"}, status=400)
+
+        # DB connection from environment (consistent with get_inventory_items)
+        mongo_url = os.getenv('MONGO_URL')
+        mongo_db = os.getenv('MONGO_DB')
+        if not mongo_url or not mongo_db:
+            return JsonResponse({"error": "MongoDB configuration not found in environment variables"}, status=500)
+
+        client = MongoClient(mongo_url)
+        db = client[mongo_db]
+
+        # Locate inventory collection similar to the GET endpoint
+        possible_collections = ["inventory_items", "inventery_items", "inventory", "items"]
+        inventory_collection = None
+        for col_name in possible_collections:
+            if col_name in db.list_collection_names():
+                inventory_collection = db[col_name]
+                break
+        if not inventory_collection:
+            return JsonResponse({"error": "Inventory collection not found"}, status=404)
+
+        # Find the specific item by case-insensitive name
+        doc = inventory_collection.find_one({
+            'Item Name': { '$regex': f'^{item_name}$', '$options': 'i' }
+        })
+        if not doc:
+            return JsonResponse({"error": "Item not found"}, status=404)
+
+        quantity_purchased = doc.get('Quantity Purchased', 0)
+        quantity_used = doc.get('Quantity Used', 0)
+        available = max(0, int(quantity_purchased) - int(quantity_used))
+
+        if usage_quantity > available:
+            return JsonResponse({
+                "error": "Insufficient quantity",
+                "maxQuantity": available
+            }, status=400)
+
+        # Atomic update: increment Quantity Used if sufficient stock still available at write time
+        update_result = inventory_collection.update_one(
+            {
+                '_id': doc['_id'],
+                '$expr': {
+                    '$gte': [ {'$subtract': ['$Quantity Purchased', '$Quantity Used']}, usage_quantity ]
+                }
+            },
+            { '$inc': { 'Quantity Used': usage_quantity } }
+        )
+
+        if update_result.matched_count == 0:
+            # Another concurrent update may have reduced availability
+            fresh = inventory_collection.find_one({'_id': doc['_id']})
+            fresh_available = max(0, int(fresh.get('Quantity Purchased', 0)) - int(fresh.get('Quantity Used', 0)))
+            return JsonResponse({
+                "error": "Insufficient quantity",
+                "maxQuantity": fresh_available
+            }, status=400)
+
+        new_available = available - usage_quantity
+        return JsonResponse({
+            "message": "Usage recorded",
+            "itemName": doc.get('Item Name', item_name),
+            "used": usage_quantity,
+            "remaining": new_available
+        })
+
+    except Exception as e:
+        print(f"[DEBUG] Error in add_inventory_usage: {str(e)}")
         return JsonResponse({"error": f"Server Error: {str(e)}"}, status=500)
