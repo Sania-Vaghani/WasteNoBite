@@ -563,3 +563,53 @@ def add_inventory_usage(request):
     except Exception as e:
         print(f"[DEBUG] Error in add_inventory_usage: {str(e)}")
         return JsonResponse({"error": f"Server Error: {str(e)}"}, status=500)
+
+
+def upcoming_expirations_view(request):
+    try:
+        # Connect to MongoDB
+        mongo_url = settings.DATABASES['default']['CLIENT']['host']
+        mongo_db = settings.DATABASES['default']['NAME']
+        client = MongoClient(mongo_url)
+        db = client[mongo_db]
+        cart_collection = db["inventory_items"]
+
+        today = datetime.utcnow()
+        threshold_date = today + timedelta(days=7)  # upcoming = within next 7 days
+
+        # Fetch products where expiration_date is within the next 7 days
+        upcoming_items = list(cart_collection.find(
+            {
+                "Expiry Date": {
+                    "$gte": today,
+                    "$lte": threshold_date
+                }
+            },
+            {
+                "_id": 0,
+                "Item Name": 1,
+                "Quantity Purchased": 1,
+                "Quantity Used": 1,
+                "Expiry Date": 1
+            }
+        ))
+
+        # Process data for response
+        processed_items = []
+        for item in upcoming_items:
+            expiration_date = item.get("Expiry Date")
+            remaining_days = (expiration_date - today).days if expiration_date else None
+            quantity_purchased = item.get("Quantity Purchased", 0)
+            quantity_used = item.get("Quantity Used", 0)
+            remaining_quantity = quantity_purchased - quantity_used
+
+            processed_items.append({
+                "item_name": item.get("Item Name"),
+                "remaining_days": remaining_days,
+                "quantity": remaining_quantity
+            })
+
+        return JsonResponse({"status": "success", "data": processed_items}, safe=False)
+
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)

@@ -56,6 +56,7 @@ export default function WasteNoBiteApp() {
   const [orderStatus, setOrderStatus] = useState("") // '', 'loading', 'success', 'error'
   const [selectedCategory, setSelectedCategory] = useState("Fruit");
   const [predictedSalesData, setPredictedSalesData] = useState([]);
+  const [upcomingExpirations, setUpcomingExpirations] = useState([]);
 
   const handlePlaceOrder = () => {
     if (!selectedDish) return
@@ -128,6 +129,14 @@ export default function WasteNoBiteApp() {
 
     fetchPrediction();
   }, [selectedCategory]);
+
+  useEffect(() => {
+    fetch("http://localhost:8000/api/upcoming-expirations/")
+      .then(res => res.json())
+      .then(data => setUpcomingExpirations(data.data || []))
+      .catch(err => console.error(err));
+  }, []);
+
 
   // Updated overview stats according to requirements
   const overviewStats = [
@@ -301,13 +310,13 @@ export default function WasteNoBiteApp() {
   }
 
   // Upcoming Expirations data
-  const upcomingExpirations = [
-    { item: "Beef", quantity: "15 kg", daysLeft: 2, color: "bg-red-500" },
-    { item: "Lettuce", quantity: "8 kg", daysLeft: 3, color: "bg-orange-500" },
-    { item: "Bananas", quantity: "12 kg", daysLeft: 1, color: "bg-red-600" },
-    { item: "Milk", quantity: "6 gallons", daysLeft: 4, color: "bg-yellow-500" },
-    { item: "Tomatoes", quantity: "20 kg", daysLeft: 2, color: "bg-red-500" },
-  ]
+  // const upcomingExpirations = [
+  //   { item: "Beef", quantity: "15 kg", daysLeft: 2, color: "bg-red-500" },
+  //   { item: "Lettuce", quantity: "8 kg", daysLeft: 3, color: "bg-orange-500" },
+  //   { item: "Bananas", quantity: "12 kg", daysLeft: 1, color: "bg-red-600" },
+  //   { item: "Milk", quantity: "6 gallons", daysLeft: 4, color: "bg-yellow-500" },
+  //   { item: "Tomatoes", quantity: "20 kg", daysLeft: 2, color: "bg-red-500" },
+  // ]
 
   if (currentScreen === "splash") {
     return <SplashScreen />
@@ -706,25 +715,41 @@ export default function WasteNoBiteApp() {
                     Items with 7 days or less remaining life
                   </CardDescription>
                 </CardHeader>
+
                 <CardContent className="p-4 space-y-3">
-                  {upcomingExpirations.map((item, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-3 rounded-lg bg-gradient-to-r from-gray-50 to-white border border-gray-200"
-                    >
-                      <div className="flex items-center space-x-3">
-                        <div className={`w-3 h-3 rounded-full ${item.color}`}></div>
-                        <div>
-                          <p className="font-medium text-gray-900 text-sm">{item.item}</p>
-                          <p className="text-xs text-gray-600">{item.quantity}</p>
+                  {upcomingExpirations.map((item, index) => {
+                    // Color mapping based on remaining_days
+                    const dayColors = {
+                      1: "bg-red-600",
+                      2: "bg-red-400",
+                      3: "bg-orange-500",
+                      4: "bg-orange-400",
+                      5: "bg-yellow-500",
+                      6: "bg-yellow-400",
+                      7: "bg-green-400",
+                    };
+
+                    return (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-3 rounded-lg bg-gradient-to-r from-gray-50 to-white border border-gray-200"
+                      >
+                        <div className="flex items-center space-x-3">
+                          <div
+                            className={`w-3 h-3 rounded-full ${dayColors[item.remaining_days] || "bg-gray-300"}`}
+                          ></div>
+                          <div>
+                            <p className="font-medium text-gray-900 text-sm">{item.item_name}</p>
+                            <p className="text-xs text-gray-600">{item.quantity}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-sm text-gray-900">{item.remaining_days} days</p>
+                          <p className="text-xs text-gray-600">remaining</p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-bold text-sm text-gray-900">{item.daysLeft} days</p>
-                        <p className="text-xs text-gray-600">remaining</p>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </CardContent>
               </Card>
             </div>
