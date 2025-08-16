@@ -613,3 +613,49 @@ def upcoming_expirations_view(request):
 
     except Exception as e:
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
+def get_inventory_levels(request):
+    # 1. Connect to MongoDB
+    mongo_url = settings.DATABASES['default']['CLIENT']['host']
+    mongo_db = settings.DATABASES['default']['NAME']
+    client = MongoClient(mongo_url)
+    db = client[mongo_db]
+    items_collection = db['inventory_items']  # Change 'items' to your actual collection name
+
+    # 2. Fetch all item documents
+    items = list(items_collection.find({}))
+
+    # 3. Classify each item
+    levels = {"understocked": [], "overstocked": [], "optimal": []}
+    for item in items:
+        current = item.get("Quantity Purchased", 0)
+        recommended = item.get("Quantity Used", 0) + item.get("Quantity Wasted", 0)  # adjust as needed
+
+        # Define thresholds
+        shortage_percent = 0
+        if recommended > 0:
+            shortage_percent = int(round(100 * (recommended-current)/recommended, 1))
+        
+        # You can set your own logic for overstock, understock, optimal
+        if current < recommended:
+            levels["understocked"].append({
+                "item_name": item["Item Name"],
+                "current": current,
+                "recommended": recommended,
+                "shortage_percent": shortage_percent
+            })
+        elif current > recommended:
+            levels["overstocked"].append({
+                "item_name": item["Item Name"],
+                "current": current,
+                "recommended": recommended,
+            })
+        else:
+            levels["optimal"].append({
+                "item_name": item["Item Name"],
+                "current": current,
+                "recommended": recommended,
+            })
+    
+    # 4. Return result as JSON
+    return JsonResponse(levels)

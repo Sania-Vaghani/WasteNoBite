@@ -58,6 +58,12 @@ export default function WasteNoBiteApp() {
   const [predictedSalesData, setPredictedSalesData] = useState([]);
   const [upcomingExpirations, setUpcomingExpirations] = useState([]);
 
+  const [inventoryOptimizationData, setInventoryOptimizationData] = useState({
+    overstocked: [],
+    understocked: [],
+    optimal: []
+  });
+
   const handlePlaceOrder = () => {
     if (!selectedDish) return
 
@@ -82,6 +88,8 @@ export default function WasteNoBiteApp() {
       }
     }, 1500)
   }
+
+  
 
   useEffect(() => {
     // Simulate splash screen duration
@@ -132,9 +140,55 @@ export default function WasteNoBiteApp() {
 
   useEffect(() => {
     fetch("http://localhost:8000/api/upcoming-expirations/")
-      .then(res => res.json())
-      .then(data => setUpcomingExpirations(data.data || []))
-      .catch(err => console.error(err));
+        .then(res => res.json())
+        .then(data => setUpcomingExpirations(data.data || []))
+        .catch(err => console.error(err));
+  }, []);
+
+  useEffect(() => {
+    const fetchInventoryData = async () => {
+      try {
+        const response = await fetch("http://localhost:8000/api/inventory-levels/");
+        if (!response.ok) throw new Error("Network response not ok");
+
+        const data = await response.json();
+
+        // Format API response to match UI expected structure
+        setInventoryOptimizationData({
+          overstocked: data.overstocked.map(item => ({
+            name: item.item_name,
+            current: item.current + (item.unit ? " " + item.unit : ""),
+            recommended: item.recommended + (item.unit ? " " + item.unit : ""),
+            excess: item.excess_percent ? `${item.excess_percent}% excess` : "",
+            color: "text-orange-600",
+            bg: "bg-orange-50",
+            border: "border-orange-200"
+          })),
+          understocked: data.understocked.map(item => ({
+            name: item.item_name,
+            current: item.current + (item.unit ? " " + item.unit : ""),
+            recommended: item.recommended + (item.unit ? " " + item.unit : ""),
+            shortage: item.shortage_percent ? `${item.shortage_percent}% shortage` : "",
+            color: "text-red-600",
+            bg: "bg-red-50",
+            border: "border-red-200"
+          })),
+          optimal: data.optimal.map(item => ({
+            name: item.item_name,
+            current: item.current + (item.unit ? " " + item.unit : ""),
+            recommended: item.recommended + (item.unit ? " " + item.unit : ""),
+            status: item.status || "Perfect level",
+            color: "text-green-600",
+            bg: "bg-green-50",
+            border: "border-green-200"
+          }))
+        });
+      } catch (error) {
+        console.error("Failed to load inventory levels:", error);
+      }
+    };
+
+    fetchInventoryData();
   }, []);
 
 
@@ -192,122 +246,122 @@ export default function WasteNoBiteApp() {
   ]
 
   // Inventory Optimization data
-  const inventoryOptimizationData = {
-    overstocked: [
-      {
-        name: "Tomatoes",
-        current: "90 kg",
-        recommended: "65.6 kg",
-        excess: "36.2% excess",
-        color: "text-orange-600",
-        bg: "bg-orange-50",
-        border: "border-orange-200",
-      },
-      {
-        name: "Potatoes",
-        current: "120 kg",
-        recommended: "85 kg",
-        excess: "41.2% excess",
-        color: "text-red-600",
-        bg: "bg-red-50",
-        border: "border-red-200",
-      },
-      {
-        name: "Onions",
-        current: "75 kg",
-        recommended: "55 kg",
-        excess: "36.4% excess",
-        color: "text-orange-600",
-        bg: "bg-orange-50",
-        border: "border-orange-200",
-      },
-      {
-        name: "Carrots",
-        current: "45 kg",
-        recommended: "32 kg",
-        excess: "40.6% excess",
-        color: "text-red-600",
-        bg: "bg-red-50",
-        border: "border-red-200",
-      },
-    ],
-    understocked: [
-      {
-        name: "Chicken Breast",
-        current: "25 kg",
-        recommended: "45 kg",
-        shortage: "44.4% shortage",
-        color: "text-red-600",
-        bg: "bg-red-50",
-        border: "border-red-200",
-      },
-      {
-        name: "Fresh Basil",
-        current: "2 bunches",
-        recommended: "8 bunches",
-        shortage: "75% shortage",
-        color: "text-red-600",
-        bg: "bg-red-50",
-        border: "border-red-200",
-      },
-      {
-        name: "Mozzarella",
-        current: "15 kg",
-        recommended: "28 kg",
-        shortage: "46.4% shortage",
-        color: "text-red-600",
-        bg: "bg-red-50",
-        border: "border-red-200",
-      },
-      {
-        name: "Olive Oil",
-        current: "8 bottles",
-        recommended: "15 bottles",
-        shortage: "46.7% shortage",
-        color: "text-red-600",
-        bg: "bg-red-50",
-        border: "border-red-200",
-      },
-    ],
-    optimal: [
-      {
-        name: "Ground Beef",
-        current: "35 kg",
-        recommended: "35 kg",
-        status: "Perfect level",
-        color: "text-green-600",
-        bg: "bg-green-50",
-        border: "border-green-200",
-      },
-      {
-        name: "Lettuce",
-        current: "20 kg",
-        recommended: "22 kg",
-        status: "Near optimal",
-        color: "text-green-600",
-        bg: "bg-green-50",
-        border: "border-green-200",
-      },
-      {
-        name: "Cheese",
-        current: "18 kg",
-        recommended: "18 kg",
-        status: "Perfect level",
-        color: "text-green-600",
-        bg: "bg-green-50",
-        border: "border-green-200",
-      },
-      {
-        name: "Bread Rolls",
-        current: "150 pieces",
-        recommended: "145 pieces",
-        status: "Near optimal",
-        color: "text-green-600",
-        bg: "bg-green-50",
-        border: "border-green-200",
-      },
-    ],
-  }
+  // const inventoryOptimizationData = {
+  //   overstocked: [
+  //     {
+  //       name: "Tomatoes",
+  //       current: "90 kg",
+  //       recommended: "65.6 kg",
+  //       excess: "36.2% excess",
+  //       color: "text-orange-600",
+  //       bg: "bg-orange-50",
+  //       border: "border-orange-200",
+  //     },
+  //     {
+  //       name: "Potatoes",
+  //       current: "120 kg",
+  //       recommended: "85 kg",
+  //       excess: "41.2% excess",
+  //       color: "text-red-600",
+  //       bg: "bg-red-50",
+  //       border: "border-red-200",
+  //     },
+  //     {
+  //       name: "Onions",
+  //       current: "75 kg",
+  //       recommended: "55 kg",
+  //       excess: "36.4% excess",
+  //       color: "text-orange-600",
+  //       bg: "bg-orange-50",
+  //       border: "border-orange-200",
+  //     },
+  //     {
+  //       name: "Carrots",
+  //       current: "45 kg",
+  //       recommended: "32 kg",
+  //       excess: "40.6% excess",
+  //       color: "text-red-600",
+  //       bg: "bg-red-50",
+  //       border: "border-red-200",
+  //     },
+  //   ],
+  //   understocked: [
+  //     {
+  //       name: "Chicken Breast",
+  //       current: "25 kg",
+  //       recommended: "45 kg",
+  //       shortage: "44.4% shortage",
+  //       color: "text-red-600",
+  //       bg: "bg-red-50",
+  //       border: "border-red-200",
+  //     },
+  //     {
+  //       name: "Fresh Basil",
+  //       current: "2 bunches",
+  //       recommended: "8 bunches",
+  //       shortage: "75% shortage",
+  //       color: "text-red-600",
+  //       bg: "bg-red-50",
+  //       border: "border-red-200",
+  //     },
+  //     {
+  //       name: "Mozzarella",
+  //       current: "15 kg",
+  //       recommended: "28 kg",
+  //       shortage: "46.4% shortage",
+  //       color: "text-red-600",
+  //       bg: "bg-red-50",
+  //       border: "border-red-200",
+  //     },
+  //     {
+  //       name: "Olive Oil",
+  //       current: "8 bottles",
+  //       recommended: "15 bottles",
+  //       shortage: "46.7% shortage",
+  //       color: "text-red-600",
+  //       bg: "bg-red-50",
+  //       border: "border-red-200",
+  //     },
+  //   ],
+  //   optimal: [
+  //     {
+  //       name: "Ground Beef",
+  //       current: "35 kg",
+  //       recommended: "35 kg",
+  //       status: "Perfect level",
+  //       color: "text-green-600",
+  //       bg: "bg-green-50",
+  //       border: "border-green-200",
+  //     },
+  //     {
+  //       name: "Lettuce",
+  //       current: "20 kg",
+  //       recommended: "22 kg",
+  //       status: "Near optimal",
+  //       color: "text-green-600",
+  //       bg: "bg-green-50",
+  //       border: "border-green-200",
+  //     },
+  //     {
+  //       name: "Cheese",
+  //       current: "18 kg",
+  //       recommended: "18 kg",
+  //       status: "Perfect level",
+  //       color: "text-green-600",
+  //       bg: "bg-green-50",
+  //       border: "border-green-200",
+  //     },
+  //     {
+  //       name: "Bread Rolls",
+  //       current: "150 pieces",
+  //       recommended: "145 pieces",
+  //       status: "Near optimal",
+  //       color: "text-green-600",
+  //       bg: "bg-green-50",
+  //       border: "border-green-200",
+  //     },
+  //   ],
+  // }
 
   // Upcoming Expirations data
   // const upcomingExpirations = [
@@ -802,7 +856,7 @@ export default function WasteNoBiteApp() {
 
                 {/* Tab Content */}
                 <div className="space-y-3">
-                  {inventoryOptimizationData[inventoryOptimizationTab].map((item, index) => (
+                  {(inventoryOptimizationData[inventoryOptimizationTab]||[]).map((item, index) => (
                     <div
                       key={index}
                       className={`p-4 rounded-lg border ${item.bg} ${item.border} hover:shadow-md transition-all`}
