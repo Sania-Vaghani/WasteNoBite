@@ -23,6 +23,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('users.urls')),
     path('api/waste-analysis/', include('waste_analysis.urls')),  # Add waste analysis URLs
+    path('api/spoilage-prediction/', include('spoilage_prediction.urls')),  # Add spoilage prediction URLs
 ]
 
 if settings.DEBUG:
