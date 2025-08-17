@@ -110,3 +110,65 @@ def predict_spoilage(request):
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+
+
+from django.views.decorators.http import require_GET
+# API endpoint to get expiring items (status 'critical') for menu optimization
+@require_GET
+@csrf_exempt
+def expiring_items(request):
+    try:
+        # Fetch spoilage predictions (reuse logic from predict_spoilage)
+        today = datetime.utcnow()
+        seven_days_ago = today - timedelta(days=7)
+
+        items = list(inventory_collection.find({
+            "Purchase Date": {
+                "$gte": seven_days_ago.replace(hour=0, minute=0, second=0, microsecond=0),
+                "$lt": today
+            }
+        }))
+        if not items:
+            return JsonResponse({"message": "No items found in the last 7 days"}, status=404)
+
+        items = prepare_features(items)
+        df = pd.DataFrame(items)
+        if "_id" in df.columns:
+            df.drop(columns=["_id"], inplace=True)
+        X = df[model.feature_names_in_]
+        predictions = model.predict(X)
+
+        if predictions.ndim == 2 and predictions.shape[1] == 2:
+            freshness = [round(float(pred[0]), 2) for pred in predictions]
+            estimated_days = [int(pred[1]) for pred in predictions]
+        else:
+            freshness = [round(float(pred), 2) for pred in predictions]
+            estimated_days = [None] * len(predictions)
+
+        # Compose items with status
+        result = []
+        for i, item in enumerate(items):
+            status = None
+            days_left = estimated_days[i] if estimated_days[i] is not None else item.get("Days_To_Expiry", 0)
+            # Use same status logic as frontend: 'critical' means use immediately/about to expire
+            if days_left <= 2 or freshness[i] <= 20:
+                status = "critical"
+            elif freshness[i] <= 40:
+                status = "warning"
+            elif freshness[i] <= 70:
+                status = "good"
+            else:
+                status = "excellent"
+            if status == "critical":
+                result.append({
+                    "name": item.get("Item Name", "Unknown"),
+                    "category": item.get("Category", "other"),
+                    "freshness": freshness[i],
+                    "estimatedDaysLeft": days_left,
+                    "maxLifespan": item.get("Max lifespan", None),
+                    "status": status
+                })
+
+        return JsonResponse({"expiring_items": result}, safe=False)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
