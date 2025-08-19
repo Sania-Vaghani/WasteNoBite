@@ -54,9 +54,24 @@ export default function WasteNoBiteApp() {
   const [selectedDish, setSelectedDish] = useState("")
   const [orderQuantity, setOrderQuantity] = useState("1")
   const [orderStatus, setOrderStatus] = useState("") // '', 'loading', 'success', 'error'
+  const [orderErrorMessage, setOrderErrorMessage] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("Fruit");
   const [predictedSalesData, setPredictedSalesData] = useState([]);
   const [upcomingExpirations, setUpcomingExpirations] = useState([]);
+
+  // Add-to-inventory form state (for Order modal repurposed as Add Purchase)
+  const [orderCategory, setOrderCategory] = useState("")
+  const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().slice(0,10))
+  const [expiryDate, setExpiryDate] = useState(() => { const d = new Date(); d.setDate(d.getDate()+3); return d.toISOString().slice(0,10) })
+  const [storageTemp, setStorageTemp] = useState("")
+  const [humidity, setHumidity] = useState("")
+  const [costPerUnit, setCostPerUnit] = useState("")
+  const [freshnessLevel, setFreshnessLevel] = useState("fresh")
+
+  // Inventory items used by the Order modal
+  const [orderInventoryItems, setOrderInventoryItems] = useState([])
+  const [loadingOrderItems, setLoadingOrderItems] = useState(false)
+  const [orderItemsError, setOrderItemsError] = useState("")
 
   const [inventoryOptimizationData, setInventoryOptimizationData] = useState({
     overstocked: [],
@@ -64,29 +79,60 @@ export default function WasteNoBiteApp() {
     optimal: []
   });
 
-  const handlePlaceOrder = () => {
-    if (!selectedDish) return
-
-    setOrderStatus("loading")
-
-    // Simulate order processing
-    setTimeout(() => {
-      // Randomly simulate success or error for demo
-      const success = Math.random() > 0.3 // 70% success rate
-
-      if (success) {
-        setOrderStatus("success")
-        // Auto-close modal after success
-        setTimeout(() => {
-          setIsOrderModalOpen(false)
-          setOrderStatus("")
-          setSelectedDish("")
-          setOrderQuantity("1")
-        }, 2000)
-      } else {
-        setOrderStatus("error")
+  const handlePlaceOrder = async () => {
+    if (!selectedDish || !orderCategory || !orderQuantity || !purchaseDate || !expiryDate) return
+    try {
+      setOrderStatus("loading")
+      const maxLifespan = Math.max(0, Math.ceil((new Date(expiryDate) - new Date(purchaseDate)) / (1000*60*60*24)))
+      const daysLeft = Math.max(0, Math.ceil((new Date(expiryDate) - new Date()) / (1000*60*60*24)))
+      const freshnessPercentage = Math.min(100, Math.max(0, Math.round((daysLeft / (maxLifespan || 1)) * 100)))
+      const highRisk = daysLeft <= 2 ? 1 : 0
+      const payload = {
+        'Item Name': selectedDish,
+        'Category': orderCategory,
+        'Purchase Date': new Date(purchaseDate).toISOString(),
+        'Expiry Date': new Date(expiryDate).toISOString(),
+        'Storage Temperature': Number(storageTemp || 0),
+        'Humidity': Number(humidity || 0),
+        'Quantity Purchased': Number(orderQuantity),
+        'Quantity Used': 0,
+        'Quantity Wasted': 0,
+        'Cost Per Unit': Number(costPerUnit || 0),
+        'Spoilage rate': Number(((100 - freshnessPercentage) / 100).toFixed(2)),
+        'Freshness Percentage': Number(freshnessPercentage),
+        'Estimated expiry wasted': 0,
+        'Max lifespan': maxLifespan,
+        'High Risk': highRisk,
+        'Freshness Level': freshnessLevel
       }
-    }, 1500)
+      const res = await fetch('http://localhost:8000/api/inventory-items/add/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setOrderErrorMessage(data?.error || "Failed to save purchase")
+        setOrderStatus("error")
+        return
+      }
+      setOrderStatus("success")
+      setTimeout(() => {
+        setIsOrderModalOpen(false)
+        setOrderStatus("")
+        setOrderErrorMessage("")
+        setSelectedDish("")
+        setOrderCategory("")
+        setOrderQuantity("1")
+        setStorageTemp("")
+        setHumidity("")
+        setCostPerUnit("")
+        setFreshnessLevel("fresh")
+      }, 1500)
+    } catch (e) {
+      setOrderErrorMessage("Network error while saving purchase")
+      setOrderStatus("error")
+    }
   }
 
   
@@ -144,6 +190,32 @@ export default function WasteNoBiteApp() {
         .then(data => setUpcomingExpirations(data.data || []))
         .catch(err => console.error(err));
   }, []);
+
+  // Load inventory items when Order modal is opened (used to drive dropdown options / category autofill)
+  useEffect(() => {
+    if (!isOrderModalOpen) return
+    setLoadingOrderItems(true)
+    setOrderItemsError("")
+    fetch("http://localhost:8000/api/inventory-items/")
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Inventory API error")
+        return res.json()
+      })
+      .then((data) => {
+        setOrderInventoryItems(Array.isArray(data?.items) ? data.items : [])
+      })
+      .catch(() => setOrderItemsError("Failed to load inventory"))
+      .finally(() => setLoadingOrderItems(false))
+  }, [isOrderModalOpen])
+
+  // Build a unique, sorted list of item names for the dropdown to avoid duplicate keys/entries
+  const uniqueOrderItemNames = Array.from(
+    new Set(
+      (orderInventoryItems || [])
+        .map(i => (i?.name || "").trim())
+        .filter(n => n.length > 0)
+    )
+  ).sort((a, b) => a.localeCompare(b))
 
   useEffect(() => {
     const fetchInventoryData = async () => {
@@ -427,7 +499,7 @@ export default function WasteNoBiteApp() {
               </Button>
 
               {/* Order Food Button */}
-              <Dialog open={isOrderModalOpen} onOpenChange={setIsOrderModalOpen}>
+              <Dialog open={isOrderModalOpen} onOpenChange={(open)=>{ setIsOrderModalOpen(open); if(open){ setOrderStatus(""); setOrderErrorMessage(""); } }}>
                 <DialogTrigger asChild>
                   <Button
                     size="sm"
@@ -440,87 +512,89 @@ export default function WasteNoBiteApp() {
                 </DialogTrigger>
                 <DialogContent className="max-w-md">
                   <DialogHeader>
-                    <DialogTitle className="text-lg font-bold text-gray-900">Food Order System</DialogTitle>
+                    <DialogTitle className="text-lg font-bold text-gray-900">Add Inventory Purchase</DialogTitle>
                   </DialogHeader>
 
                   <div className="space-y-4 py-4">
-                    {/* Dish Selection */}
+                    {/* Inventory Item Selection */}
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">Select Dish</label>
-                      <Select value={selectedDish} onValueChange={setSelectedDish}>
+                      <label className="text-sm font-medium text-gray-700">Item Name</label>
+                      <Select value={selectedDish} onValueChange={(val)=>{
+                        setSelectedDish(val)
+                        // Auto-fill category if known in existing items
+                        const found = orderInventoryItems.find(i => i.name?.toLowerCase() === val.toLowerCase())
+                        if (found?.category) setOrderCategory(found.category)
+                      }}>
                         <SelectTrigger className="w-full border-blue-200 focus:border-blue-400">
-                          <SelectValue placeholder="Choose a dish..." />
+                          <SelectValue placeholder={loadingOrderItems ? "Loading items..." : "Select item"} />
                         </SelectTrigger>
                         <SelectContent>
-                          {/* Vegetarian Dishes */}
-                          <SelectItem value="crispy-veggie-delight">Crispy Veggie Delight</SelectItem>
-                          <SelectItem value="apple-cabbage-slaw">Apple & Cabbage Slaw</SelectItem>
-                          <SelectItem value="tomato-cucumber-salad">Tomato & Cucumber Salad</SelectItem>
-                          <SelectItem value="pumpkin-soup">Pumpkin Soup</SelectItem>
-                          <SelectItem value="stuffed-eggplant">Stuffed Eggplant</SelectItem>
-                          <SelectItem value="garlic-butter-mushrooms">Garlic Butter Mushrooms</SelectItem>
-                          <SelectItem value="spiced-pumpkin-pea-curry">Spiced Pumpkin & Pea Curry</SelectItem>
-                          <SelectItem value="egg-tomato-scramble">Egg & Tomato Scramble</SelectItem>
-                          <SelectItem value="crunchy-corn-fritters">Crunchy Corn Fritters</SelectItem>
-                          <SelectItem value="cabbage-carrot-wraps">Cabbage & Carrot Wraps</SelectItem>
-                          <SelectItem value="okra-potato-fries">Okra & Potato Fries</SelectItem>
-
-                          {/* New Vegetarian Dishes */}
-                          <SelectItem value="cheesy-broccoli-bake">Cheesy Broccoli Bake</SelectItem>
-                          <SelectItem value="carrot-potato-soup">Carrot and Potato Soup</SelectItem>
-                          <SelectItem value="spinach-cheese-sandwich">Spinach and Cheese Sandwich</SelectItem>
-                          <SelectItem value="banana-strawberry-smoothie">Banana Strawberry Smoothie</SelectItem>
-                          <SelectItem value="yogurt-fruit-salad">Yogurt Fruit Salad</SelectItem>
-                          <SelectItem value="cheesy-potato-pancakes">Cheesy Potato Pancakes</SelectItem>
-                          <SelectItem value="apple-carrot-slaw">Apple Carrot Slaw</SelectItem>
-                          <SelectItem value="orange-smoothie">Orange Smoothie</SelectItem>
-                          <SelectItem value="spinach-banana-smoothie">Spinach Banana Smoothie</SelectItem>
-                          <SelectItem value="strawberry-yogurt-parfait">Strawberry Yogurt Parfait</SelectItem>
-
-                          {/* Non-Vegetarian Dishes */}
-                          <SelectItem value="grilled-lemon-chicken">Grilled Lemon Chicken</SelectItem>
-                          <SelectItem value="beef-broccoli-stir-fry">Beef & Broccoli Stir-Fry</SelectItem>
-                          <SelectItem value="chicken-mushroom-stew">Chicken & Mushroom Stew</SelectItem>
-
-                          {/* New Non-Vegetarian Dishes */}
-                          <SelectItem value="grilled-chicken-breast">Grilled Chicken Breast</SelectItem>
-                          <SelectItem value="pork-chop-apple-sauce">Pork Chop with Apple Sauce</SelectItem>
-                          <SelectItem value="beef-steak-broccoli">Beef Steak with Broccoli</SelectItem>
-                          <SelectItem value="salmon-spinach">Salmon with Spinach</SelectItem>
-                          <SelectItem value="shrimp-stir-fry">Shrimp Stir Fry</SelectItem>
-                          <SelectItem value="cod-yogurt-sauce">Cod in Yogurt Sauce</SelectItem>
-                          <SelectItem value="chicken-potato-bake">Chicken and Potato Bake</SelectItem>
-                          <SelectItem value="shrimp-orange-salad">Shrimp and Orange Salad</SelectItem>
-                          <SelectItem value="beef-cheese-quesadilla">Beef and Cheese Quesadilla</SelectItem>
-                          <SelectItem value="salmon-yogurt-dip">Salmon Yogurt Dip</SelectItem>
+                          {uniqueOrderItemNames.length > 0 ? (
+                            uniqueOrderItemNames.map((name) => (
+                              <SelectItem key={`inv_${name}`} value={name}>
+                                {name}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="__no_items__" disabled>
+                              {orderItemsError ? "Failed to load inventory" : "No items available"}
+                            </SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">Category</label>
+                      <Select value={orderCategory} onValueChange={setOrderCategory}>
+                        <SelectTrigger className="w-full border-blue-200 focus:border-blue-400">
+                          <SelectValue placeholder="Choose a category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {['Vegetables','Fruits','Meat','Dairy','Spices','Seafood','Grains','Beverages'].map(c => (
+                            <SelectItem key={c} value={c}>{c}</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
 
-                    {/* Quantity Selection */}
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">Quantity</label>
-                      <Input
-                        type="number"
-                        min="1"
-                        max="10"
-                        value={orderQuantity}
-                        onChange={(e) => setOrderQuantity(e.target.value)}
-                        className="border-blue-200 focus:border-blue-400"
-                        placeholder="1"
-                      />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">Purchase Date</label>
+                        <Input type="date" value={purchaseDate} onChange={(e)=>setPurchaseDate(e.target.value)} className="border-blue-200 focus:border-blue-400" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">Expiry Date</label>
+                        <Input type="date" value={expiryDate} onChange={(e)=>setExpiryDate(e.target.value)} className="border-blue-200 focus:border-blue-400" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">Quantity Purchased</label>
+                        <Input type="number" min="1" value={orderQuantity} onChange={(e)=>setOrderQuantity(e.target.value)} className="border-blue-200 focus:border-blue-400" placeholder="5" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">Cost Per Unit</label>
+                        <Input type="number" min="0" step="0.01" value={costPerUnit} onChange={(e)=>setCostPerUnit(e.target.value)} className="border-blue-200 focus:border-blue-400" placeholder="6" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">Storage Temperature (°C)</label>
+                        <Input type="number" value={storageTemp} onChange={(e)=>setStorageTemp(e.target.value)} className="border-blue-200 focus:border-blue-400" placeholder="2" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">Humidity (%)</label>
+                        <Input type="number" value={humidity} onChange={(e)=>setHumidity(e.target.value)} className="border-blue-200 focus:border-blue-400" placeholder="85" />
+                      </div>
+                      {/* Freshness level is computed automatically by backend from dates; no manual input */}
                     </div>
 
-                    {/* Order Status Messages */}
+                    {/* Status Messages */}
                     {orderStatus === "error" && (
                       <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                        <p className="text-sm text-red-700">Failed to load menu. Please try again later.</p>
+                        <p className="text-sm text-red-700">{orderErrorMessage || "Failed to save purchase. Please try again."}</p>
                       </div>
                     )}
 
                     {orderStatus === "success" && (
                       <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                        <p className="text-sm text-green-700">Order placed successfully!</p>
+                        <p className="text-sm text-green-700">Purchase added to inventory.</p>
                       </div>
                     )}
 
@@ -532,7 +606,12 @@ export default function WasteNoBiteApp() {
                           setIsOrderModalOpen(false)
                           setOrderStatus("")
                           setSelectedDish("")
+                          setOrderCategory("")
                           setOrderQuantity("1")
+                          setStorageTemp("")
+                          setHumidity("")
+                          setCostPerUnit("")
+                          setFreshnessLevel("fresh")
                         }}
                         className="flex-1 border-gray-300 text-gray-700 hover:bg-gray-50"
                       >
@@ -540,10 +619,10 @@ export default function WasteNoBiteApp() {
                       </Button>
                       <Button
                         onClick={handlePlaceOrder}
-                        disabled={!selectedDish || orderStatus === "loading"}
+                        disabled={!selectedDish || !orderCategory || !orderQuantity || !purchaseDate || !expiryDate || orderStatus === "loading"}
                         className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white"
                       >
-                        {orderStatus === "loading" ? "Placing..." : "Place Order"}
+                        {orderStatus === "loading" ? "Saving..." : "Add to Inventory"}
                       </Button>
                     </div>
                   </div>

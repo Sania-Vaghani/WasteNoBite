@@ -532,8 +532,10 @@ export default function WasteAnalytics(props) {
                 <SelectValue placeholder="Select an item to analyze" />
               </SelectTrigger>
               <SelectContent>
-                {item_analysis.map(item => (
-                  <SelectItem key={item.name} value={item.name}>{item.name}</SelectItem>
+                {Array.from(new Set(item_analysis.map(i => (i?.name || '').trim()).filter(Boolean)))
+                  .sort((a,b)=>a.localeCompare(b))
+                  .map(name => (
+                    <SelectItem key={`wa_${name}`} value={name}>{name}</SelectItem>
                   ))}
               </SelectContent>
             </Select>

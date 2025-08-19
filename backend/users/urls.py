@@ -13,4 +13,5 @@ urlpatterns = [
     path('inventory-levels/', views.get_inventory_levels, name='get_inventory_levels'),
     path('inventory-items/', views.get_inventory_items, name='get_inventory_items'),
     path('inventory-items/usage/', views.add_inventory_usage, name='add_inventory_usage'),
+    path('inventory-items/add/', views.add_inventory_item, name='add_inventory_item'),
 ]
