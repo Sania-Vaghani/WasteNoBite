@@ -362,7 +362,7 @@ export default function InventoryManagement(props) {
 
   // Get unique categories from inventory items
   const categories = ["all", ...new Set(inventoryItems.map(item => item.category))];
-  const qualities = ["all", "Fresh", "Bad", "Rotten"];
+  const qualities = ["all", "fresh", "near_expiry"];
 
   const getQualityColor = (quality, qualityColor) => {
     // Use the qualityColor from backend if available, otherwise fallback to quality-based logic
@@ -756,9 +756,9 @@ export default function InventoryManagement(props) {
       {viewMode === "grid" ? (
         // Grid View
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10 gap-4">
-          {filteredItems.map((item) => (
+          {filteredItems.map((item, idx) => (
             <div
-              key={item.id}
+              key={`${item.name || 'item'}-${idx}`}
               className="group relative bg-white rounded-lg border border-gray-200 p-3 hover:shadow-lg transition-all duration-300 cursor-pointer"
             >
               <div className="aspect-square bg-gray-100 rounded-lg mb-3 overflow-hidden relative">
@@ -866,7 +866,7 @@ export default function InventoryManagement(props) {
                 <tbody>
                   {filteredItems.map((item, index) => (
                     <tr
-                      key={item.id}
+                      key={`${item.name || 'row'}-${index}`}
                       className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${
                         index % 2 === 0 ? "bg-white" : "bg-gray-50/50"
                       }`}

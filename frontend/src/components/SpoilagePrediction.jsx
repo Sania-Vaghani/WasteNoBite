@@ -65,7 +65,7 @@ export default function SpoilagePrediction() {
     vegetable: "Vegetable",
     dairy: "Dairy",
     fruit: "Fruit",
-    seafood: "Seafood",
+    seafood: "Seafood", 
     other: "Other",
   }
 

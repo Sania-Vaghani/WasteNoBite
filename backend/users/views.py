@@ -17,6 +17,7 @@ import pickle
 import pandas as pd
 import json
 import random
+from datetime import datetime, timezone
 
 
 def generate_jwt(user):
@@ -329,143 +330,116 @@ def get_inventory_items(request):
             print("[DEBUG] MongoDB configuration missing")
             return JsonResponse({"error": "MongoDB configuration not found in environment variables"}, status=500)
         
-        # Connect to MongoDB using environment variables
+        # Connect to MongoDB
         client = MongoClient(mongo_url)
         db = client[mongo_db]
         
-        # List all collections in the database
+        # Detect collection
         collections = db.list_collection_names()
         print(f"[DEBUG] Available collections: {collections}")
-        
-        # Try different possible collection names
-        possible_collections = ["inventory_items", "inventery_items", "inventory", "items"]
-        inventory_collection = None
-        collection_name = None
-        
-        for col_name in possible_collections:
-            if col_name in collections:
-                inventory_collection = db[col_name]
-                collection_name = col_name
-                print(f"[DEBUG] Found collection: {col_name}")
-                break
-        
+
+        inventory_collection = db["inventory_items_1"]
+
         if not inventory_collection:
-            print(f"[DEBUG] No inventory collection found. Available collections: {collections}")
-            return JsonResponse({"error": f"No inventory collection found. Available collections: {collections}"}, status=404)
+            return JsonResponse({"error": f"No inventory collection found. Available: {collections}"}, status=404)
 
-        # Fetch all inventory items
-        inventory_items = list(inventory_collection.find({}, {'_id': 0}))  # Exclude MongoDB _id
-        print(f"[DEBUG] Found {len(inventory_items)} items in collection '{collection_name}'")
-        
-        # Show first item structure if available
-        if inventory_items:
-            print(f"[DEBUG] First item structure: {inventory_items[0]}")
-        else:
-            print("[DEBUG] Collection is empty")
+        # Fetch items
+        inventory_items = list(inventory_collection.find({}, {'_id': 0}))
+        print(f"[DEBUG] Found {len(inventory_items)} items in collection 'inventory_items_1'")
 
-        # Process each item to calculate remaining life and format data
+        now = datetime.now()
         processed_items = []
+
         for item in inventory_items:
-            print(f"[DEBUG] Processing item: {item.get('Item Name', 'Unknown')}")
+            expiry_raw = item.get("Expiry Date")
+            expiry_date = None
+
+            # Parse expiry date safely
+            if isinstance(expiry_raw, datetime):
+                expiry_date = expiry_raw
+            elif isinstance(expiry_raw, str):
+                try:
+                    expiry_date = datetime.strptime(expiry_raw, "%Y-%m-%d")
+                except ValueError:
+                    try:
+                        expiry_date = datetime.strptime(expiry_raw, "%Y-%m-%d %H:%M:%S")
+                    except ValueError:
+                        print(f"[DEBUG] Could not parse expiry date for item {item.get('Item Name')}: {expiry_raw}")
             
-            # Use Max lifespan from MongoDB for remaining life
+            # Skip expired items
+            if expiry_date and expiry_date <= now:
+                print(f"[DEBUG] Skipping expired item: {item.get('Item Name')} (Expiry: {expiry_date})")
+                continue
+
+            # Process only valid items (not expired)
             max_lifespan = item.get('Max lifespan', 0)
-            remaining_life = max_lifespan  # Use the actual max lifespan value
-            
-            # Use Freshness Level from MongoDB for quality and determine color
             freshness_level = item.get('Freshness Level', '').lower()
-            quality = freshness_level if freshness_level else "Unknown"
-            
-            # Determine quality color based on freshness level
-            quality_color = "gray"  # default
+            quality_color = "gray"
             if freshness_level == "fresh":
                 quality_color = "green"
             elif freshness_level == "near_expiry":
                 quality_color = "yellow"
             elif freshness_level == "expired":
                 quality_color = "red"
-            
-            # Calculate quantity: Quantity Purchased - Quantity Used
+
             quantity_purchased = item.get('Quantity Purchased', 0)
             quantity_used = item.get('Quantity Used', 0)
             current_quantity = quantity_purchased - quantity_used
-            
-            # Add stock status message
+
             stock_status = ""
             if current_quantity <= 0:
-                stock_status = f"Inventory Item to buy - {item.get('Item Name', 'Unknown')} as we are out of stock"
-            
-            # Map image name to file path - handle special cases and extensions
+                stock_status = f"Inventory Item to buy - {item.get('Item Name', 'Unknown')} (out of stock)"
+
             item_name = item.get('Item Name', '').lower()
-            
-            # Comprehensive mapping for items that might have different names in images
             image_mapping = {
-                'yogurt': 'yougurt.webp',  # Handle the typo in filename
-                'yougurt': 'yougurt.webp',
-                'broccoli': 'brocolli.png',  # Handle the typo in filename
-                'brocolli': 'brocolli.png',
-                'pork chop': 'pork.png',  # Map to existing pork image
-                'porkchop': 'pork.png',
-                'chicken breast': 'chicken.png',  # Map to existing chicken image
-                'chickenbreast': 'chicken.png',
-                'beef steak': 'beef.png',  # Map to existing beef image
-                'beefsteak': 'beef.png',
-                'tomato': 'tomatoes.png',  # Map to existing tomatoes image
-                'tomatoes': 'tomatoes.png',
-                'onion': 'onions.png',  # Map to existing onions image
-                'onions': 'onions.png',
-                'bell pepper': 'capsicum.png',  # Map to existing capsicum image
-                'bellpepper': 'capsicum.png',
+                'yogurt': 'yougurt.webp', 'yougurt': 'yougurt.webp',
+                'broccoli': 'brocolli.png', 'brocolli': 'brocolli.png',
+                'pork chop': 'pork.png', 'porkchop': 'pork.png',
+                'chicken breast': 'chicken.png', 'chickenbreast': 'chicken.png',
+                'beef steak': 'beef.png', 'beefsteak': 'beef.png',
+                'tomato': 'tomatoes.png', 'tomatoes': 'tomatoes.png',
+                'onion': 'onions.png', 'onions': 'onions.png',
+                'bell pepper': 'capsicum.png', 'bellpepper': 'capsicum.png',
                 'capsicum': 'capsicum.png',
             }
-            
-            # Check if we have a special mapping
             if item_name in image_mapping:
                 image_path = f"http://localhost:8000/media/images/{image_mapping[item_name]}"
             else:
-                # Default to PNG for most items
                 image_path = f"http://localhost:8000/media/images/{item_name}.png"
-            
-            print(f"[DEBUG] Item: {item_name}, Image path: {image_path}")
-            print(f"[DEBUG] Quality: {quality}, Remaining Life: {remaining_life}, Current Quantity: {current_quantity}")
-            if stock_status:
-                print(f"[DEBUG] Stock Status: {stock_status}")
-            
-            processed_item = {
-                'id': str(hash(item.get('Item Name', ''))),  # Use hash as ID
+
+            processed_items.append({
+                'id': str(hash(item.get('Item Name', ''))),
                 'name': item.get('Item Name', ''),
                 'category': item.get('Category', ''),
-                'quantity': current_quantity,  # Quantity Purchased - Quantity Used
-                'remainingLife': remaining_life,  # Use Max lifespan from MongoDB
-                'lastUpdated': '1 hour ago',  # You can calculate this from actual data
-                'quality': quality,  # Use Freshness Level from MongoDB
-                'qualityColor': quality_color,  # Add quality color
+                'quantity': current_quantity,
+                'remainingLife': max_lifespan,
+                'lastUpdated': '1 hour ago',
+                'quality': freshness_level if freshness_level else "Unknown",
+                'qualityColor': quality_color,
                 'image': image_path,
-                'stockStatus': stock_status,  # Add stock status message
+                'stockStatus': stock_status,
                 'purchaseDate': item.get('Purchase Date'),
-                'expiryDate': item.get('Expiry Date'),
+                'expiryDate': expiry_raw,
                 'storageTemperature': item.get('Storage Temperature'),
                 'humidity': item.get('Humidity'),
-                'quantityPurchased': item.get('Quantity Purchased', 0),
-                'quantityUsed': item.get('Quantity Used', 0),
+                'quantityPurchased': quantity_purchased,
+                'quantityUsed': quantity_used,
                 'quantityWasted': item.get('Quantity Wasted', 0),
                 'costPerUnit': item.get('Cost Per Unit', 0),
                 'spoilageRate': item.get('Spoilage rate', 0),
                 'freshnessPercentage': item.get('Freshness Percentage', 0),
                 'estimatedExpiryWasted': item.get('Estimated expiry wasted', 0),
-                'maxLifespan': item.get('Max lifespan', 0),
+                'maxLifespan': max_lifespan,
                 'highRisk': item.get('High Risk', 0),
                 'freshnessLevel': item.get('Freshness Level', '')
-            }
-            processed_items.append(processed_item)
+            })
 
-        print(f"[DEBUG] Processed {len(processed_items)} items")
+        print(f"[DEBUG] Processed {len(processed_items)} non-expired items")
         return JsonResponse({'items': processed_items})
 
     except Exception as e:
         print(f"[DEBUG] Error in get_inventory_items: {str(e)}")
         return JsonResponse({"error": f"Server Error: {str(e)}"}, status=500)
-
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -565,6 +539,120 @@ def add_inventory_usage(request):
         return JsonResponse({"error": f"Server Error: {str(e)}"}, status=500)
 
 
+@csrf_exempt
+@require_http_methods(["POST"])
+def add_inventory_item(request):
+    """Insert a new inventory purchase document into MongoDB.
+
+    Accepts JSON with keys compatible with existing inventory schema
+    (as returned by get_inventory_items before transformation).
+    If the inventory collection doesn't exist yet, it will create/use
+    "inventory_items" by default.
+    """
+    try:
+        body = json.loads(request.body or "{}")
+
+        # Basic validation
+        required_fields = [
+            'Item Name', 'Category', 'Purchase Date', 'Expiry Date',
+            'Quantity Purchased'
+        ]
+        missing = [f for f in required_fields if body.get(f) in (None, "")]
+        if missing:
+            return JsonResponse({"error": f"Missing fields: {', '.join(missing)}"}, status=400)
+
+        # Parse numbers safely
+        def to_number(val, default=0):
+            try:
+                if val is None or val == "":
+                    return default
+                # Allow string numbers
+                return float(val) if "." in str(val) else int(val)
+            except Exception:
+                return default
+
+        # Normalize document to be consistent with existing schema
+        # Parse dates to ISO strings Mongo can store as datetime if driver converts
+        def _to_iso(val):
+            try:
+                if isinstance(val, datetime):
+                    # Ensure it's timezone-aware in UTC
+                    return val if val.tzinfo else val.replace(tzinfo=timezone.utc)
+                if isinstance(val, str):
+                    s = val.replace('Z', '+00:00')
+                    dt = datetime.fromisoformat(s)
+                    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+            except Exception:
+                return None
+            return None
+
+        purchase_dt = _to_iso(body.get('Purchase Date')) or datetime.now(timezone.utc)
+        expiry_dt = _to_iso(body.get('Expiry Date')) or purchase_dt
+
+        # Use UTC-aware "now"
+        now = datetime.now(timezone.utc)
+
+        max_lifespan_calc = max(0, (expiry_dt - purchase_dt).days)
+        remaining_now = max(0, (expiry_dt - now).days)
+        freshness_level_calc = 'fresh'
+        if remaining_now <= 0:
+            freshness_level_calc = 'expired'
+        elif max_lifespan_calc and remaining_now <= max(1, int(0.3 * max_lifespan_calc)):
+            freshness_level_calc = 'near_expiry'
+
+        doc = {
+            'Item Name': body.get('Item Name').strip(),
+            'Category': body.get('Category').strip(),
+            'Purchase Date': purchase_dt,
+            'Expiry Date': expiry_dt,
+            'Storage Temperature': to_number(body.get('Storage Temperature')),
+            'Humidity': to_number(body.get('Humidity')),
+            'Quantity Purchased': to_number(body.get('Quantity Purchased'), 0),
+            'Quantity Used': to_number(body.get('Quantity Used'), 0),
+            'Quantity Wasted': to_number(body.get('Quantity Wasted'), 0),
+            'Cost Per Unit': to_number(body.get('Cost Per Unit'), 0),
+            'Spoilage rate': to_number(body.get('Spoilage rate'), 0),
+            'Freshness Percentage': to_number(body.get('Freshness Percentage'), 0),
+            'Estimated expiry wasted': to_number(body.get('Estimated expiry wasted'), 0),
+            'Max lifespan': to_number(body.get('Max lifespan'), max_lifespan_calc),
+            'High Risk': to_number(body.get('High Risk'), 0),
+            'Freshness Level': freshness_level_calc,
+            'Created At': datetime.utcnow().isoformat() + 'Z'
+        }
+
+        # DB connection
+        mongo_url = os.getenv('MONGO_URL')
+        mongo_db = os.getenv('MONGO_DB')
+        if not mongo_url or not mongo_db:
+            return JsonResponse({"error": "MongoDB configuration not found in environment variables"}, status=500)
+
+        client = MongoClient(mongo_url)
+        db = client[mongo_db]
+
+        # Find existing inventory collection or create default one
+        possible_collections = ["inventory_items_1"]
+        collection_name = None
+        for col_name in possible_collections:
+            if col_name in db.list_collection_names():
+                collection_name = col_name
+                break
+        if not collection_name:
+            collection_name = "inventory_items"
+        inventory_collection = db[collection_name]
+
+        result = inventory_collection.insert_one(doc)
+
+        return JsonResponse({
+            "message": "Inventory item added",
+            "id": str(result.inserted_id),
+            "collection": collection_name
+        }, status=201)
+
+    except Exception as e:
+        print(f"[DEBUG] Error in add_inventory_item: {str(e)}")
+        return JsonResponse({"error": f"Server Error: {str(e)}"}, status=500)
+
+
 def upcoming_expirations_view(request):
     try:
         # Connect to MongoDB
@@ -625,18 +713,43 @@ def get_inventory_levels(request):
     # 2. Fetch all item documents
     items = list(items_collection.find({}))
 
+    now = datetime.now()
+    valid_items = []  # Only keep non-expired items
+
+    for item in items:
+        expiry_raw = item.get("Expiry Date")
+        expiry_date = None
+
+        # Parse expiry date safely
+        if isinstance(expiry_raw, datetime):
+            expiry_date = expiry_raw
+        elif isinstance(expiry_raw, str):
+            try:
+                expiry_date = datetime.strptime(expiry_raw, "%Y-%m-%d")
+            except ValueError:
+                try:
+                    expiry_date = datetime.strptime(expiry_raw, "%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    print(f"[DEBUG] Could not parse expiry date for item {item.get('Item Name')}: {expiry_raw}")
+
+        # Keep only non-expired items
+        if expiry_date and expiry_date > now:
+            valid_items.append(item)
+        else:
+            print(f"[DEBUG] Skipping expired item: {item.get('Item Name')} (Expiry: {expiry_date})")
+
     # 3. Classify each item
     levels = {"understocked": [], "overstocked": [], "optimal": []}
-    for item in items:
+    for item in valid_items:
         current = item.get("Quantity Purchased", 0)
         recommended = item.get("Quantity Used", 0) + item.get("Quantity Wasted", 0)  # adjust as needed
 
         # Define thresholds
         shortage_percent = 0
         if recommended > 0:
-            shortage_percent = int(round(100 * (recommended-current)/recommended, 1))
-        
-        # You can set your own logic for overstock, understock, optimal
+            shortage_percent = int(round(100 * (recommended - current) / recommended, 1))
+
+        # Classify item
         if current < recommended:
             levels["understocked"].append({
                 "item_name": item["Item Name"],
@@ -656,6 +769,6 @@ def get_inventory_levels(request):
                 "current": current,
                 "recommended": recommended,
             })
-    
+
     # 4. Return result as JSON
     return JsonResponse(levels)
