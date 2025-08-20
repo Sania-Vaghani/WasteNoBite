@@ -23,7 +23,7 @@ export default function SpoilagePrediction() {
       const d = new Date(date)
       if (Number.isNaN(d.getTime())) return `${nm}|invalid-date`
       // only use the date part to avoid timezone mismatches
-      const day = d.toISOString().slice(0, 10)
+      const day = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`
       return `${nm}|${day}`
     } catch {
       return `${(name || "").trim().toLowerCase()}|invalid-date`
@@ -93,7 +93,7 @@ export default function SpoilagePrediction() {
           const name = p["Item Name"] || related["Item Name"] || "Unknown"
           const freshness = Number(p["Freshness Percentage"] || 0)
           const daysLeft = Number(p["Estimated Days Remaining"] || 0)
-          const rawCat = related.Category ?? "Other"
+          const rawCat = (related?.Category ?? p?.Category ?? "Other")
           const category = normalizeCategory(rawCat, name)
 
           return {
@@ -103,7 +103,7 @@ export default function SpoilagePrediction() {
             category,
             freshness,
             estimatedDaysLeft: daysLeft,
-            maxLifespan: related["Max lifespan"] || 0,
+            maxLifespan: (related?.["Max lifespan"] ?? p?.["Max lifespan"] ?? 0),
             status: computeStatus(freshness, daysLeft),
           }
         })

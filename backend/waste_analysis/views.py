@@ -32,12 +32,7 @@ def waste_distribution(request):
         db = client[mongo_db]
         
         # Find inventory collection
-        possible_collections = ["inventory_items", "inventery_items", "inventory", "items"]
-        inventory_collection = None
-        for col_name in possible_collections:
-            if col_name in db.list_collection_names():
-                inventory_collection = db[col_name]
-                break
+        inventory_collection = db["inventory_items"]
         
         if not inventory_collection:
             return JsonResponse({"error": "Inventory collection not found"}, status=404)
@@ -122,12 +117,7 @@ def waste_trends(request):
         db = client[mongo_db]
         
         # Find inventory collection
-        possible_collections = ["inventory_items", "inventery_items", "inventory", "items"]
-        inventory_collection = None
-        for col_name in possible_collections:
-            if col_name in db.list_collection_names():
-                inventory_collection = db[col_name]
-                break
+        inventory_collection = db["inventory_items"]
         
         if not inventory_collection:
             return JsonResponse({"error": "Inventory collection not found"}, status=404)
@@ -189,12 +179,7 @@ def item_analysis(request):
         db = client[mongo_db]
         
         # Find inventory collection
-        possible_collections = ["inventory_items", "inventery_items", "inventory", "items"]
-        inventory_collection = None
-        for col_name in possible_collections:
-            if col_name in db.list_collection_names():
-                inventory_collection = db[col_name]
-                break
+        inventory_collection = db["inventory_items"]
         
         if not inventory_collection:
             return JsonResponse({"error": "Inventory collection not found"}, status=404)
@@ -278,12 +263,7 @@ def waste_recommendations(request):
         db = client[mongo_db]
         
         # Find inventory collection
-        possible_collections = ["inventory_items", "inventery_items", "inventory", "items"]
-        inventory_collection = None
-        for col_name in possible_collections:
-            if col_name in db.list_collection_names():
-                inventory_collection = db[col_name]
-                break
+        inventory_collection = db["inventory_items"]
         
         if not inventory_collection:
             return JsonResponse({"error": "Inventory collection not found"}, status=404)
@@ -383,13 +363,8 @@ def cost_analysis(request):
         db = client[mongo_db]
         
         # Find inventory collection
-        possible_collections = ["inventory_items", "inventery_items", "inventory", "items"]
-        inventory_collection = None
-        for col_name in possible_collections:
-            if col_name in db.list_collection_names():
-                inventory_collection = db[col_name]
-                break
-        
+        inventory_collection = db["inventory_items"]
+
         if not inventory_collection:
             return JsonResponse({"error": "Inventory collection not found"}, status=404)
 
@@ -454,12 +429,7 @@ def waste_summary(request):
         db = client[mongo_db]
         
         # Find inventory collection
-        possible_collections = ["inventory_items", "inventery_items", "inventory", "items"]
-        inventory_collection = None
-        for col_name in possible_collections:
-            if col_name in db.list_collection_names():
-                inventory_collection = db[col_name]
-                break
+        inventory_collection = db["inventory_items"]
         
         if not inventory_collection:
             return JsonResponse({"error": "Inventory collection not found"}, status=404)

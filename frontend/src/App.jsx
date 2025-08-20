@@ -135,8 +135,6 @@ export default function WasteNoBiteApp() {
     }
   }
 
-  
-
   useEffect(() => {
     // Simulate splash screen duration
     const timer = setTimeout(() => {
@@ -317,133 +315,6 @@ export default function WasteNoBiteApp() {
     { name: "Beverages", percentage: 10, color: "bg-purple-500" },
   ]
 
-  // Inventory Optimization data
-  // const inventoryOptimizationData = {
-  //   overstocked: [
-  //     {
-  //       name: "Tomatoes",
-  //       current: "90 kg",
-  //       recommended: "65.6 kg",
-  //       excess: "36.2% excess",
-  //       color: "text-orange-600",
-  //       bg: "bg-orange-50",
-  //       border: "border-orange-200",
-  //     },
-  //     {
-  //       name: "Potatoes",
-  //       current: "120 kg",
-  //       recommended: "85 kg",
-  //       excess: "41.2% excess",
-  //       color: "text-red-600",
-  //       bg: "bg-red-50",
-  //       border: "border-red-200",
-  //     },
-  //     {
-  //       name: "Onions",
-  //       current: "75 kg",
-  //       recommended: "55 kg",
-  //       excess: "36.4% excess",
-  //       color: "text-orange-600",
-  //       bg: "bg-orange-50",
-  //       border: "border-orange-200",
-  //     },
-  //     {
-  //       name: "Carrots",
-  //       current: "45 kg",
-  //       recommended: "32 kg",
-  //       excess: "40.6% excess",
-  //       color: "text-red-600",
-  //       bg: "bg-red-50",
-  //       border: "border-red-200",
-  //     },
-  //   ],
-  //   understocked: [
-  //     {
-  //       name: "Chicken Breast",
-  //       current: "25 kg",
-  //       recommended: "45 kg",
-  //       shortage: "44.4% shortage",
-  //       color: "text-red-600",
-  //       bg: "bg-red-50",
-  //       border: "border-red-200",
-  //     },
-  //     {
-  //       name: "Fresh Basil",
-  //       current: "2 bunches",
-  //       recommended: "8 bunches",
-  //       shortage: "75% shortage",
-  //       color: "text-red-600",
-  //       bg: "bg-red-50",
-  //       border: "border-red-200",
-  //     },
-  //     {
-  //       name: "Mozzarella",
-  //       current: "15 kg",
-  //       recommended: "28 kg",
-  //       shortage: "46.4% shortage",
-  //       color: "text-red-600",
-  //       bg: "bg-red-50",
-  //       border: "border-red-200",
-  //     },
-  //     {
-  //       name: "Olive Oil",
-  //       current: "8 bottles",
-  //       recommended: "15 bottles",
-  //       shortage: "46.7% shortage",
-  //       color: "text-red-600",
-  //       bg: "bg-red-50",
-  //       border: "border-red-200",
-  //     },
-  //   ],
-  //   optimal: [
-  //     {
-  //       name: "Ground Beef",
-  //       current: "35 kg",
-  //       recommended: "35 kg",
-  //       status: "Perfect level",
-  //       color: "text-green-600",
-  //       bg: "bg-green-50",
-  //       border: "border-green-200",
-  //     },
-  //     {
-  //       name: "Lettuce",
-  //       current: "20 kg",
-  //       recommended: "22 kg",
-  //       status: "Near optimal",
-  //       color: "text-green-600",
-  //       bg: "bg-green-50",
-  //       border: "border-green-200",
-  //     },
-  //     {
-  //       name: "Cheese",
-  //       current: "18 kg",
-  //       recommended: "18 kg",
-  //       status: "Perfect level",
-  //       color: "text-green-600",
-  //       bg: "bg-green-50",
-  //       border: "border-green-200",
-  //     },
-  //     {
-  //       name: "Bread Rolls",
-  //       current: "150 pieces",
-  //       recommended: "145 pieces",
-  //       status: "Near optimal",
-  //       color: "text-green-600",
-  //       bg: "bg-green-50",
-  //       border: "border-green-200",
-  //     },
-  //   ],
-  // }
-
-  // Upcoming Expirations data
-  // const upcomingExpirations = [
-  //   { item: "Beef", quantity: "15 kg", daysLeft: 2, color: "bg-red-500" },
-  //   { item: "Lettuce", quantity: "8 kg", daysLeft: 3, color: "bg-orange-500" },
-  //   { item: "Bananas", quantity: "12 kg", daysLeft: 1, color: "bg-red-600" },
-  //   { item: "Milk", quantity: "6 gallons", daysLeft: 4, color: "bg-yellow-500" },
-  //   { item: "Tomatoes", quantity: "20 kg", daysLeft: 2, color: "bg-red-500" },
-  // ]
-
   if (currentScreen === "splash") {
     return <SplashScreen />
   }
@@ -550,7 +421,7 @@ export default function WasteNoBiteApp() {
                           <SelectValue placeholder="Choose a category" />
                         </SelectTrigger>
                         <SelectContent>
-                          {['Vegetables','Fruits','Meat','Dairy','Spices','Seafood','Grains','Beverages'].map(c => (
+                          {['Vegetable','Fruit','Meat','Dairy','Seafood'].map(c => (
                             <SelectItem key={c} value={c}>{c}</SelectItem>
                           ))}
                         </SelectContent>

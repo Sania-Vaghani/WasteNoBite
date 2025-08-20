@@ -1,5 +1,6 @@
 import json
 import jwt
+from dateutil import parser
 from datetime import datetime, timedelta
 from django.http import JsonResponse
 from django.contrib.auth.models import User
@@ -24,8 +25,8 @@ def generate_jwt(user):
     payload = {
         'id': user.id,
         'username': user.username,
-        'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=24),
-        'iat': datetime.datetime.utcnow()
+        'exp': datetime.utcnow() + timedelta(hours=24),
+        'iat': datetime.utcnow()
     }
     token = jwt.encode(payload, settings.SECRET_KEY, algorithm='HS256')
     return token
@@ -145,7 +146,7 @@ def send_otp(request):
         # Store OTP in MongoDB (upsert)
         db['otp_codes'].update_one(
             {'email': email},
-            {'$set': {'otp': otp, 'created_at': datetime.datetime.utcnow()}},
+            {'$set': {'otp': otp, 'created_at': datetime.utcnow()}},
             upsert=True
         )
         # Debug: print OTP records after upsert
@@ -338,7 +339,7 @@ def get_inventory_items(request):
         collections = db.list_collection_names()
         print(f"[DEBUG] Available collections: {collections}")
 
-        inventory_collection = db["inventory_items_1"]
+        inventory_collection = db["inventory_items"]
 
         if not inventory_collection:
             return JsonResponse({"error": f"No inventory collection found. Available: {collections}"}, status=404)
@@ -480,12 +481,8 @@ def add_inventory_usage(request):
         db = client[mongo_db]
 
         # Locate inventory collection similar to the GET endpoint
-        possible_collections = ["inventory_items", "inventery_items", "inventory", "items"]
-        inventory_collection = None
-        for col_name in possible_collections:
-            if col_name in db.list_collection_names():
-                inventory_collection = db[col_name]
-                break
+        inventory_collection = db["inventory_items"]
+        
         if not inventory_collection:
             return JsonResponse({"error": "Inventory collection not found"}, status=404)
 
@@ -630,14 +627,7 @@ def add_inventory_item(request):
         db = client[mongo_db]
 
         # Find existing inventory collection or create default one
-        possible_collections = ["inventory_items_1"]
-        collection_name = None
-        for col_name in possible_collections:
-            if col_name in db.list_collection_names():
-                collection_name = col_name
-                break
-        if not collection_name:
-            collection_name = "inventory_items"
+        collection_name = "inventory_items"
         inventory_collection = db[collection_name]
 
         result = inventory_collection.insert_one(doc)
@@ -653,6 +643,7 @@ def add_inventory_item(request):
         return JsonResponse({"error": f"Server Error: {str(e)}"}, status=500)
 
 
+
 def upcoming_expirations_view(request):
     try:
         # Connect to MongoDB
@@ -663,16 +654,11 @@ def upcoming_expirations_view(request):
         cart_collection = db["inventory_items"]
 
         today = datetime.utcnow()
-        threshold_date = today + timedelta(days=7)  # upcoming = within next 7 days
+        threshold_date = today + timedelta(days=7)
 
-        # Fetch products where expiration_date is within the next 7 days
+        # Fetch all items first
         upcoming_items = list(cart_collection.find(
-            {
-                "Expiry Date": {
-                    "$gte": today,
-                    "$lte": threshold_date
-                }
-            },
+            {},
             {
                 "_id": 0,
                 "Item Name": 1,
@@ -682,93 +668,127 @@ def upcoming_expirations_view(request):
             }
         ))
 
-        # Process data for response
+        # Process + filter in Python
         processed_items = []
         for item in upcoming_items:
-            expiration_date = item.get("Expiry Date")
-            remaining_days = (expiration_date - today).days if expiration_date else None
-            quantity_purchased = item.get("Quantity Purchased", 0)
-            quantity_used = item.get("Quantity Used", 0)
-            remaining_quantity = quantity_purchased - quantity_used
+            expiry_raw = item.get("Expiry Date")
 
-            processed_items.append({
-                "item_name": item.get("Item Name"),
-                "remaining_days": remaining_days,
-                "quantity": remaining_quantity
-            })
+            # parse expiry date safely
+            if isinstance(expiry_raw, str):
+                try:
+                    expiration_date = parser.parse(expiry_raw, dayfirst=True)  
+                except Exception:
+                    continue
+            else:
+                expiration_date = expiry_raw
+
+            # only include items expiring in <=7 days
+            if today <= expiration_date <= threshold_date:
+                remaining_days = (expiration_date - today).days
+                quantity_purchased = item.get("Quantity Purchased", 0)
+                quantity_used = item.get("Quantity Used", 0)
+                remaining_quantity = quantity_purchased - quantity_used
+
+                processed_items.append({
+                    "item_name": item.get("Item Name"),
+                    "remaining_days": remaining_days,
+                    "quantity": remaining_quantity
+                })
 
         return JsonResponse({"status": "success", "data": processed_items}, safe=False)
 
     except Exception as e:
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
 
+
 def get_inventory_levels(request):
+    from django.http import JsonResponse
+    from datetime import datetime
+    from pymongo import MongoClient
+
     # 1. Connect to MongoDB
     mongo_url = settings.DATABASES['default']['CLIENT']['host']
     mongo_db = settings.DATABASES['default']['NAME']
     client = MongoClient(mongo_url)
     db = client[mongo_db]
-    items_collection = db['inventory_items']  # Change 'items' to your actual collection name
+    items_collection = db['inventory_items']
 
-    # 2. Fetch all item documents
+    # 2. Fetch all items
     items = list(items_collection.find({}))
-
-    now = datetime.now()
-    valid_items = []  # Only keep non-expired items
+    now = datetime.utcnow()
+    valid_items = []
 
     for item in items:
         expiry_raw = item.get("Expiry Date")
         expiry_date = None
 
-        # Parse expiry date safely
+        # Try multiple formats
         if isinstance(expiry_raw, datetime):
             expiry_date = expiry_raw
         elif isinstance(expiry_raw, str):
-            try:
-                expiry_date = datetime.strptime(expiry_raw, "%Y-%m-%d")
-            except ValueError:
+            for fmt in ("%d-%m-%Y", "%Y-%m-%d", "%Y-%m-%d %H:%M:%S"):
                 try:
-                    expiry_date = datetime.strptime(expiry_raw, "%Y-%m-%d %H:%M:%S")
+                    expiry_date = datetime.strptime(expiry_raw, fmt)
+                    break
                 except ValueError:
-                    print(f"[DEBUG] Could not parse expiry date for item {item.get('Item Name')}: {expiry_raw}")
+                    continue
 
-        # Keep only non-expired items
         if expiry_date and expiry_date > now:
             valid_items.append(item)
-        else:
-            print(f"[DEBUG] Skipping expired item: {item.get('Item Name')} (Expiry: {expiry_date})")
 
-    # 3. Classify each item
+    print(f"[DEBUG] Total items: {len(items)}, Non-expired: {len(valid_items)}")
+
+    # 3. Classification
     levels = {"understocked": [], "overstocked": [], "optimal": []}
     for item in valid_items:
-        current = item.get("Quantity Purchased", 0)
-        recommended = item.get("Quantity Used", 0) + item.get("Quantity Wasted", 0)  # adjust as needed
+        purchase_raw = item.get("Purchase Date")
+        purchase_date = None
 
-        # Define thresholds
-        shortage_percent = 0
-        if recommended > 0:
-            shortage_percent = int(round(100 * (recommended - current) / recommended, 1))
+        if isinstance(purchase_raw, datetime):
+            purchase_date = purchase_raw
+        elif isinstance(purchase_raw, str):
+            for fmt in ("%d-%m-%Y", "%Y-%m-%d", "%Y-%m-%d %H:%M:%S"):
+                try:
+                    purchase_date = datetime.strptime(purchase_raw, fmt)
+                    break
+                except ValueError:
+                    continue
 
-        # Classify item
+        if not purchase_date:
+            purchase_date = now
+
+        days_since_purchase = max((now - purchase_date).days, 1)
+
+        quantity_purchased = int(item.get("Quantity Purchased", 0))
+        quantity_used = int(item.get("Quantity Used", 0))
+        current = max(quantity_purchased - quantity_used, 0)
+
+        # Estimate usage rate
+        avg_daily_usage = quantity_used / days_since_purchase if days_since_purchase > 0 else 0
+        recommended = max(int(avg_daily_usage * 3), 1)  # 3-day buffer, min 1
+
+        print(f"[DEBUG] {item.get('Item Name')} → Current: {current}, Recommended: {recommended}, Usage/day: {avg_daily_usage:.2f}")
+
         if current < recommended:
             levels["understocked"].append({
                 "item_name": item["Item Name"],
                 "current": current,
                 "recommended": recommended,
-                "shortage_percent": shortage_percent
+                "avg_daily_usage": round(avg_daily_usage, 2),
             })
-        elif current > recommended:
+        elif current > recommended * 2:
             levels["overstocked"].append({
                 "item_name": item["Item Name"],
                 "current": current,
                 "recommended": recommended,
+                "avg_daily_usage": round(avg_daily_usage, 2),
             })
         else:
             levels["optimal"].append({
                 "item_name": item["Item Name"],
                 "current": current,
                 "recommended": recommended,
+                "avg_daily_usage": round(avg_daily_usage, 2),
             })
 
-    # 4. Return result as JSON
     return JsonResponse(levels)
