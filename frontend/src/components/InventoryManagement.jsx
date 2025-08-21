@@ -41,10 +41,16 @@ export default function InventoryManagement(props) {
   const [usageError, setUsageError] = useState("");
   const [usageSubmitting, setUsageSubmitting] = useState(false);
 
+  // Scanner modal state from parent (App.jsx)
+  const { isScannerOpen, setIsScannerOpen } = props;
+
   // Dynamic data state
   const [inventoryItems, setInventoryItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Get unique item names for usage dropdown (must be after inventoryItems is defined)
+  const uniqueItemNames = [...new Set(inventoryItems.map(item => item.name))];
 
   // Fetch inventory data from API
   const fetchInventoryData = async () => {
@@ -405,13 +411,53 @@ export default function InventoryManagement(props) {
     }
   };
 
-  const filteredItems = inventoryItems.filter((item) => {
-    const matchesSearch =
-      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.category.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = categoryFilter === "all" || item.category === categoryFilter;
-    const matchesQuality = qualityFilter === "all" || item.quality === qualityFilter;
-    return matchesSearch && matchesCategory && matchesQuality;
+  // Group items by name for latest batch logic
+  const batchesByName = {};
+  for (const item of inventoryItems) {
+    const key = item.name.trim().toLowerCase();
+    if (!batchesByName[key]) batchesByName[key] = [];
+    batchesByName[key].push(item);
+  }
+
+  // For each item, show all in-stock batches, and only the latest out-of-stock batch
+  const filteredItems = [];
+  Object.values(batchesByName).forEach(batches => {
+    // Sort batches by expiry or purchase date if available, else by id (latest last)
+    const sorted = batches.slice().sort((a, b) => {
+      if (a.expiryDate && b.expiryDate) {
+        return new Date(a.expiryDate) - new Date(b.expiryDate);
+      }
+      if (a.purchaseDate && b.purchaseDate) {
+        return new Date(a.purchaseDate) - new Date(b.purchaseDate);
+      }
+      return (a.id || 0) - (b.id || 0);
+    });
+    // Show all in-stock batches
+    sorted.forEach(batch => {
+      const matchesSearch =
+        batch.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        batch.category.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesCategory = categoryFilter === "all" || batch.category === categoryFilter;
+      const matchesQuality = qualityFilter === "all" || batch.quality === qualityFilter;
+      if (batch.quantity > 0 && matchesSearch && matchesCategory && matchesQuality) {
+        filteredItems.push({ ...batch, stockStatus: false });
+      }
+    });
+    // Find latest out-of-stock batch
+    const outOfStockBatches = sorted.filter(b => b.quantity === 0);
+    if (outOfStockBatches.length > 0) {
+      const latestOutOfStock = outOfStockBatches[outOfStockBatches.length - 1];
+      const matchesSearch =
+        latestOutOfStock.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        latestOutOfStock.category.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesCategory = categoryFilter === "all" || latestOutOfStock.category === categoryFilter;
+      const matchesQuality = qualityFilter === "all" || latestOutOfStock.quality === qualityFilter;
+      // Only show if no in-stock batch exists
+      const anyInStock = sorted.some(b => b.quantity > 0);
+      if (!anyInStock && matchesSearch && matchesCategory && matchesQuality) {
+        filteredItems.push({ ...latestOutOfStock, stockStatus: true });
+      }
+    }
   });
 
   const handleDownload = () => {
@@ -627,9 +673,9 @@ export default function InventoryManagement(props) {
                         <SelectValue placeholder="Select item" />
                       </SelectTrigger>
                       <SelectContent>
-                        {inventoryItems.map((item) => (
-                          <SelectItem key={item.id} value={item.name}>
-                            {item.name}
+                        {uniqueItemNames.map((name) => (
+                          <SelectItem key={name} value={name}>
+                            {name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -744,7 +790,10 @@ export default function InventoryManagement(props) {
               Refresh
             </Button>
 
-            <Button className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white shadow-lg">
+            <Button
+              className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white shadow-lg"
+              onClick={() => setIsScannerOpen(true)}
+            >
               <Camera className="h-4 w-4 mr-2" />
               Scan New Item
             </Button>

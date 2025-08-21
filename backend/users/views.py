@@ -484,55 +484,46 @@ def add_inventory_usage(request):
 
         # Locate inventory collection similar to the GET endpoint
         inventory_collection = db["inventory_items"]
-        
         if not inventory_collection:
             return JsonResponse({"error": "Inventory collection not found"}, status=404)
 
-        # Find the specific item by case-insensitive name
-        doc = inventory_collection.find_one({
-            'Item Name': { '$regex': f'^{item_name}$', '$options': 'i' }
-        })
-        if not doc:
-            return JsonResponse({"error": "Item not found"}, status=404)
+        # Find all batches for the item, sorted by earliest purchase date (FIFO)
+        docs = list(inventory_collection.find(
+            {'Item Name': { '$regex': f'^{item_name}$', '$options': 'i' }},
+            sort=[('Purchase Date', 1)]
+        ))
+        if not docs:
+            return JsonResponse({"error": "Item not found in inventory"}, status=404)
 
-        quantity_purchased = doc.get('Quantity Purchased', 0)
-        quantity_used = doc.get('Quantity Used', 0)
-        available = max(0, int(quantity_purchased) - int(quantity_used))
-
-        if usage_quantity > available:
-            return JsonResponse({
-                "error": "Insufficient quantity",
-                "maxQuantity": available
-            }, status=400)
-
-        # Atomic update: increment Quantity Used if sufficient stock still available at write time
-        update_result = inventory_collection.update_one(
-            {
-                '_id': doc['_id'],
-                '$expr': {
-                    '$gte': [ {'$subtract': ['$Quantity Purchased', '$Quantity Used']}, usage_quantity ]
-                }
-            },
-            { '$inc': { 'Quantity Used': usage_quantity } }
+        total_available = sum(
+            max(0, int(doc.get('Quantity Purchased', 0)) - int(doc.get('Quantity Used', 0)))
+            for doc in docs
         )
+        if usage_quantity > total_available:
+            return JsonResponse({"error": f"Insufficient quantity. Max available is {total_available}"}, status=400)
 
-        if update_result.matched_count == 0:
-            # Another concurrent update may have reduced availability
-            fresh = inventory_collection.find_one({'_id': doc['_id']})
-            fresh_available = max(0, int(fresh.get('Quantity Purchased', 0)) - int(fresh.get('Quantity Used', 0)))
-            return JsonResponse({
-                "error": "Insufficient quantity",
-                "maxQuantity": fresh_available
-            }, status=400)
+        qty_to_use = usage_quantity
+        for doc in docs:
+            purchased = int(doc.get('Quantity Purchased', 0))
+            used = int(doc.get('Quantity Used', 0))
+            available = max(0, purchased - used)
+            if available <= 0:
+                continue
+            use_now = min(available, qty_to_use)
+            inventory_collection.update_one(
+                {'_id': doc['_id']},
+                {'$inc': {'Quantity Used': use_now}}
+            )
+            qty_to_use -= use_now
+            if qty_to_use <= 0:
+                break
 
-        new_available = available - usage_quantity
         return JsonResponse({
-            "message": "Usage recorded",
-            "itemName": doc.get('Item Name', item_name),
+            "message": "Usage recorded (FIFO)",
+            "itemName": item_name,
             "used": usage_quantity,
-            "remaining": new_available
+            "remaining": total_available - usage_quantity
         })
-
     except Exception as e:
         print(f"[DEBUG] Error in add_inventory_usage: {str(e)}")
         return JsonResponse({"error": f"Server Error: {str(e)}"}, status=500)

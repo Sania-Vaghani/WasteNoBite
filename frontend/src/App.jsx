@@ -878,7 +878,7 @@ export default function WasteNoBiteApp() {
           </TabsContent>
 
           <TabsContent value="inventory">
-            <InventoryManagement />
+            <InventoryManagement isScannerOpen={isScannerOpen} setIsScannerOpen={setIsScannerOpen} />
           </TabsContent>
 
           <TabsContent value="waste">
