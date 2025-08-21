@@ -14,11 +14,13 @@ from django.contrib.auth.hashers import make_password, check_password
 from django.views.decorators.http import require_http_methods
 from django.http import JsonResponse
 import os
+import re
 import pickle
 import pandas as pd
 import json
 import random
 from datetime import datetime, timezone
+from django.core.files.storage import default_storage
 
 
 def generate_jwt(user):
@@ -792,3 +794,58 @@ def get_inventory_levels(request):
             })
 
     return JsonResponse(levels)
+
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
+import os
+from .roboflow_service import analyze_image
+
+@csrf_exempt
+def detect_image(request):
+    try:
+        if request.method == "POST" and request.FILES.get("image"):
+            image_file = request.FILES["image"]
+
+            # Save uploaded file to a temp path
+            import tempfile, os
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_file:
+                for chunk in image_file.chunks():
+                    tmp_file.write(chunk)
+                temp_path = tmp_file.name  # full path
+
+            # Call Roboflow service
+            from .roboflow_service import analyze_image
+            raw_result = analyze_image(temp_path)
+
+            # Remove temp file after use
+            os.remove(temp_path)
+
+            # 🔹 Normalize response (always array for frontend)
+            import re
+            cleaned_result = {}
+
+            gemini1 = raw_result.get("google_gemini_1")
+
+            if isinstance(gemini1, dict) and "output" in gemini1:
+                numbers = re.findall(r'\d+', gemini1["output"])
+                cleaned_result["google_gemini_1"] = [int(num) for num in numbers]
+            elif isinstance(gemini1, str):
+                numbers = re.findall(r'\d+', gemini1)
+                cleaned_result["google_gemini_1"] = [int(num) for num in numbers]
+            else:
+                cleaned_result["google_gemini_1"] = []
+
+            # Pass through raw for debugging
+            cleaned_result["raw"] = raw_result
+            
+            return JsonResponse(cleaned_result, safe=False)
+
+        return JsonResponse({"error": "No image uploaded"}, status=400)
+
+    except Exception as e:
+        import traceback
+        return JsonResponse(
+            {"error": str(e), "trace": traceback.format_exc()},
+            status=500
+        )
