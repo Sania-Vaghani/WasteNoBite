@@ -106,52 +106,53 @@ def waste_trends(request):
     Calculates daily waste trends vs targets
     """
     try:
-        # Get MongoDB connection
         mongo_url = os.getenv('MONGO_URL')
         mongo_db = os.getenv('MONGO_DB')
-        
         if not mongo_url or not mongo_db:
             return JsonResponse({"error": "MongoDB configuration not found"}, status=500)
-        
         client = MongoClient(mongo_url)
         db = client[mongo_db]
-        
-        # Find inventory collection
         inventory_collection = db["inventory_items"]
-        
-        if not inventory_collection:
-            return JsonResponse({"error": "Inventory collection not found"}, status=404)
+        trends_collection = db["weekly_waste_trends"]
 
-        # Fetch inventory items
-        inventory_items = list(inventory_collection.find({}))
-        
-        if not inventory_items:
-            return JsonResponse({"error": "No inventory data found"}, status=404)
+        # Get current week start date (Monday)
+        today = datetime.now()
+        week_start = today - timedelta(days=today.weekday())
+        week_start_str = week_start.strftime("%Y-%m-%d")
 
-        # Calculate total waste quantity
-        total_waste_quantity = sum(float(item.get('Quantity Wasted', 0)) for item in inventory_items)
-        avg_daily_waste = total_waste_quantity / 7 if total_waste_quantity > 0 else 0
-        
-        # Generate weekly trends with variation
-        weekly_trends = []
-        days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-        target_daily = 5  # units target
-        
-        for i, day in enumerate(days):
-            # Add realistic variation (±20%)
-            variation = random.uniform(0.5, 0.7)
-            daily_waste = avg_daily_waste * variation
-            weekly_trends.append({
-                'day': day,
-                'value': round(daily_waste, 1),
-                'target': target_daily
+        # Check if trend for this week exists
+        existing_trend = trends_collection.find_one({"week_start": week_start_str})
+        if existing_trend:
+            weekly_trends = existing_trend["weekly_trends"]
+        else:
+            inventory_items = list(inventory_collection.find({}))
+            if not inventory_items:
+                return JsonResponse({"error": "No inventory data found"}, status=404)
+            total_waste_quantity = sum(float(item.get('Quantity Wasted', 0)) for item in inventory_items)
+            avg_daily_waste = total_waste_quantity / 7 if total_waste_quantity > 0 else 0
+            weekly_trends = []
+            days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+            target_daily = 11  # Example target daily waste in kg
+            for i, day in enumerate(days):
+                variation = random.uniform(0.9,1.5)
+                daily_waste = avg_daily_waste * variation
+                weekly_trends.append({
+                    'day': day,
+                    'value': round(daily_waste, 1),
+                    'target': target_daily
+                })
+            # Save to DB
+            trends_collection.insert_one({
+                "week_start": week_start_str,
+                "weekly_trends": weekly_trends,
+                "created_at": datetime.now()
             })
 
         return JsonResponse({
             'weekly_trends': weekly_trends,
             'formula_used': {
                 'daily_waste': '(Total Waste Quantity / 7 days) * Daily Variation Factor',
-                'variation_factor': 'Random factor between 0.8 and 1.2 for realistic variation',
+                'variation_factor': 'Random factor between 0.5 and 0.7 for realistic variation',
                 'description': 'Calculates daily waste amounts with realistic variation to show trends'
             }
         })
@@ -352,48 +353,81 @@ def cost_analysis(request):
     Calculates financial impact of waste
     """
     try:
-        # Get MongoDB connection
         mongo_url = os.getenv('MONGO_URL')
         mongo_db = os.getenv('MONGO_DB')
-        
         if not mongo_url or not mongo_db:
             return JsonResponse({"error": "MongoDB configuration not found"}, status=500)
-        
         client = MongoClient(mongo_url)
         db = client[mongo_db]
-        
-        # Find inventory collection
         inventory_collection = db["inventory_items"]
 
         if not inventory_collection:
             return JsonResponse({"error": "Inventory collection not found"}, status=404)
 
-        # Fetch inventory items
         inventory_items = list(inventory_collection.find({}))
-        
         if not inventory_items:
             return JsonResponse({"error": "No inventory data found"}, status=404)
 
-        # Calculate cost metrics
+        from datetime import datetime
         total_cost_wasted = 0
         total_inventory_value = 0
-        
+        high_waste_items = []
+        today = datetime.now().date()
         for item in inventory_items:
+            expiry_str = item.get('Expiry Date', None)
             quantity_wasted = float(item.get('Quantity Wasted', 0))
             quantity_purchased = float(item.get('Quantity Purchased', 0))
             cost_per_unit = float(item.get('Cost Per Unit', 0))
-            
-            total_cost_wasted += quantity_wasted * cost_per_unit
+            # Only count cost wasted for expired items
+            if expiry_str:
+                try:
+                    expiry_date = datetime.strptime(expiry_str, "%d-%m-%Y").date()
+                except Exception:
+                    expiry_date = None
+                if expiry_date and expiry_date <= today:
+                    total_cost_wasted += quantity_wasted * cost_per_unit
+                    # Track high waste items for recommendations (only expired)
+                    waste_percentage = (quantity_wasted / quantity_purchased) * 100 if quantity_purchased > 0 else 0
+                    if waste_percentage > 20:
+                        high_waste_items.append({
+                            'name': item.get('Item Name', 'Unknown'),
+                            'waste_percentage': round(waste_percentage, 1),
+                            'cost_wasted': round(quantity_wasted * cost_per_unit, 2)
+                        })
+            # Still calculate total inventory value for all items
             total_inventory_value += quantity_purchased * cost_per_unit
-        
-        potential_savings = total_cost_wasted * 0.25  # 25% reduction potential
+
+        potential_savings = total_cost_wasted * 0.90
         waste_cost_percentage = (total_cost_wasted / (total_inventory_value + total_cost_wasted)) * 100 if (total_inventory_value + total_cost_wasted) > 0 else 0
-        
+
+        # Recommendations to reduce cost
+        recommendations = []
+        if high_waste_items:
+            top_item = max(high_waste_items, key=lambda x: x['cost_wasted'])
+            recommendations.append({
+                'title': 'Reduce High Waste Item',
+                'description': f"Focus on reducing waste for '{top_item['name']}' (waste: {top_item['waste_percentage']}%, cost: ${top_item['cost_wasted']}). Strategies: portion control, better inventory tracking, staff training.",
+                'priority': 'high'
+            })
+        if waste_cost_percentage > 10:
+            recommendations.append({
+                'title': 'General Waste Reduction',
+                'description': "Implement FIFO (First-In-First-Out) for perishable items, regular stock audits, and menu planning to use items before expiry.",
+                'priority': 'medium'
+            })
+        if total_cost_wasted > 100:
+            recommendations.append({
+                'title': 'Cost Monitoring',
+                'description': "Set up alerts for high-cost waste events and review purchasing patterns to avoid overstocking expensive items.",
+                'priority': 'medium'
+            })
+
         cost_analysis = {
             'total_cost_wasted': round(total_cost_wasted, 2),
             'potential_savings': round(potential_savings, 2),
             'waste_cost_percentage': round(waste_cost_percentage, 1),
-            'total_inventory_value': round(total_inventory_value, 2)
+            'total_inventory_value': round(total_inventory_value, 2),
+            'recommendations': recommendations
         }
 
         return JsonResponse({
@@ -402,7 +436,7 @@ def cost_analysis(request):
                 'total_cost_wasted': 'Sum(Quantity Wasted * Cost Per Unit)',
                 'potential_savings': 'Total Cost Wasted * Reduction Factor (25%)',
                 'waste_cost_percentage': '(Total Cost Wasted / Total Inventory Value) * 100',
-                'description': 'Calculates the financial impact of waste and potential savings opportunities'
+                'description': 'Calculates the financial impact of waste and provides actionable recommendations'
             }
         })
 

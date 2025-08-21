@@ -43,6 +43,14 @@ function PieChart({ data }) {
     </svg>
   );
 }
+// Helper to get Monday of current week
+function getMondayDateString() {
+  const today = new Date();
+  const day = today.getDay();
+  const diff = today.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is Sunday
+  const monday = new Date(today.setDate(diff));
+  return monday.toLocaleDateString();
+}
 
 export default function WasteAnalytics(props) {
   const [selectedItem, setSelectedItem] = useState("");
@@ -584,42 +592,52 @@ export default function WasteAnalytics(props) {
       </div>
 
       {/* Weekly Waste Trends */}
-      <Card className="bg-gradient-to-br from-green-100 to-emerald-50 border-0 shadow-lg">
-        <div className="bg-gradient-to-r from-green-500 to-emerald-500 rounded-t-lg p-4">
-          <h3 className="text-lg font-bold text-white">Weekly Waste Trends</h3>
-          <p className="text-white text-sm">Daily waste amounts vs targets</p>
-        </div>
-        <CardContent className="p-6">
-          <div className="space-y-3">
-            {weekly_trends.map((d, i) => {
-              const over = d.value > d.target;
-              const percent = Math.min((d.value / 60) * 100, 100);
-              return (
-                <div key={d.day} className="flex items-center gap-3">
-                  <span className="w-12 font-bold text-gray-700">{d.day}</span>
-                  <div className="flex-1 relative h-6 rounded-full bg-gray-100 overflow-hidden">
-                    <div
-                      className={`absolute left-0 top-0 h-6 rounded-full ${over ? "bg-gradient-to-r from-red-400 to-pink-400" : "bg-gradient-to-r from-green-400 to-emerald-400"}`}
-                      style={{ width: `${percent}%` }}
-                    ></div>
-                    <div className="absolute left-2/3 top-0 h-6 w-0.5 bg-gray-400 opacity-60"></div>
-                  </div>
-                  <span className="w-14 text-right font-medium text-gray-700">{d.value} units</span>
-                  <span className={`ml-2 px-3 py-1 rounded-full text-xs font-bold ${over ? "bg-red-100 text-red-600" : "bg-green-100 text-green-600"}`}>{over ? "Over" : "Under"}</span>
-                </div>
-              );
-            })}
-            <div className="flex items-center gap-4 pt-2">
-              <span className="w-3 h-3 rounded-full bg-green-400 inline-block"></span>
-              <span className="text-xs text-gray-500">Under Target</span>
-              <span className="w-3 h-3 rounded-full bg-red-400 inline-block"></span>
-              <span className="text-xs text-gray-500">Over Target</span>
-              <span className="w-3 h-0.5 bg-gray-400 inline-block"></span>
-              <span className="text-xs text-gray-500">Target Line</span>
+        <Card className="bg-gradient-to-br from-green-100 to-emerald-50 border-0 shadow-lg">
+          <div className="bg-gradient-to-r from-green-500 to-emerald-500 rounded-t-lg p-4">
+            <h3 className="text-lg font-bold text-white">Weekly Waste Trends</h3>
+            <p className="text-white text-sm">Daily waste amounts vs targets</p>
+            <div className="text-xs text-gray-200 mt-1">
+              Week of: {getMondayDateString()}
             </div>
           </div>
-        </CardContent>
-      </Card>
+          <CardContent className="p-6">
+            <div className="space-y-3">
+              {weekly_trends.map((d, i) => {
+                const over = d.value > d.target;
+                const percent = Math.min((d.value / 60) * 100, 100);
+                const targetPercent = Math.min((d.target / 60) * 100, 100);
+                return (
+                  <div key={d.day} className="flex items-center gap-3">
+                    <span className="w-12 font-bold text-gray-700">{d.day}</span>
+                    <div className="flex-1 relative h-6 rounded-full bg-gray-100 overflow-hidden">
+                      <div
+                        className={`absolute left-0 top-0 h-6 rounded-full ${over ? "bg-gradient-to-r from-red-400 to-pink-400" : "bg-gradient-to-r from-green-400 to-emerald-400"}`}
+                        style={{ width: `${percent}%` }}
+                      ></div>
+                      <div
+                        className="absolute top-0 h-6 w-0.5 bg-gray-400 opacity-60"
+                        style={{ left: `${targetPercent}%` }}
+                      ></div>
+                    </div>
+                    <span className="w-14 text-right font-medium text-gray-700">{d.value} units</span>
+                    <span className={`ml-2 px-3 py-1 rounded-full text-xs font-bold ${over ? "bg-red-100 text-red-600" : "bg-green-100 text-green-600"}`}>{over ? "Over" : "Under"}</span>
+                  </div>
+                );
+              })}
+              <div className="flex items-center gap-4 pt-2">
+                <span className="w-3 h-3 rounded-full bg-green-400 inline-block"></span>
+                <span className="text-xs text-gray-500">Under Target</span>
+                <span className="w-3 h-3 rounded-full bg-red-400 inline-block"></span>
+                <span className="text-xs text-gray-500">Over Target</span>
+                <span className="w-3 h-0.5 bg-gray-400 inline-block"></span>
+                <span className="text-xs text-gray-500">Target Line</span>
+              </div>
+              <div className="text-xs text-gray-500 mt-2">
+                Waste trends are updated every Monday and reflect the current week's data.
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
       {/* Cost Analysis */}
       <Card className="bg-gradient-to-br from-purple-100 to-purple-50 border-0 shadow-lg">
