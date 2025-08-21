@@ -1,0 +1,65 @@
+{
+  "intents": [
+    {
+      "tag": "greeting",
+      "patterns": ["hi", "hello", "hey", "good morning", "good evening"],
+      "responses": ["Hello! Welcome to WasteNoBite. How can I help you today?"]
+    },
+    {
+      "tag": "waste",
+      "patterns": ["waste", "garbage", "trash", "rubbish", "litter", "food waste", "reduce waste", "waste management", "waste reduction", "waste disposal", "waste recycling", "waste minimization", "waste prevention", "waste collection", "waste sorting", "waste treatment", "waste segregation"],
+      "responses": ["Here are some effective ways to reduce food waste:\n\n• Implement FIFO (First In, First Out) rotation\n• Create daily specials using ingredients near expiry\n• Monitor portion sizes and adjust recipes\n• Use AI-powered demand forecasting\n• Train staff on proper storage techniques\n• Track waste patterns to identify problem areas"]
+    },
+    {
+      "tag": "inventory",
+      "patterns": ["inventory", "stock management", "supply chain", "smart inventory", "inventory tips", "stock control", "warehouse management", "inventory optimization", "inventory tracking", "inventory system", "inventory management", "inventory solutions", "inventory best practices", "food stock", "food inventory", "food supply chain", "food inventory management", "food stock control", "food inventory optimization", "food tracking", "food inventory system", "food inventory solutions", "food inventory best practices"],
+      "responses": ["Smart inventory management tips:\n\n• Use real-time tracking systems\n• Set up automatic reorder points\n• Implement barcode/QR scanning\n• Monitor temperature and humidity\n• Regular cycle counts\n• Categorize items by shelf life\n• Use predictive analytics for ordering."]
+    },
+    {
+      "tag": "menu_optimization",
+      "patterns": ["menu", "menu optimization", "menu design", "menu engineering", "menu strategies", "menu planning", "menu analysis", "menu development", "menu improvement", "menu trends", "menu innovation", "menu best practices", "food menu", "restaurant menu", "cafe menu", "bar menu", "food menu optimization", "restaurant menu design", "cafe menu engineering"],
+      "responses": ["Menu optimization strategies:\n\n• Analyze dish profitability and popularity\n• Use seasonal ingredients for freshness\n• Create flexible recipes with substitutions\n• Implement dynamic pricing\n• Cross-utilize ingredients across dishes\n• Monitor customer preferences\n• Regularly update menu based on sales data "]
+    },
+    {
+      "tag": "spoilage",
+      "patterns": ["spoilage", "food spoilage", "food safety", "food preservation", "food storage", "food waste reduction", "food spoilage prevention", "food spoilage management", "food spoilage solutions", "food spoilage best practices", "food spoilage tips", "food spoilage control", "food spoilage monitoring", "food spoilage tracking", "food spoilage analysis", "food spoilage causes", "food spoilage effects", "expired food", "food shelf life", "food storage tips", "food storage solutions"],
+      "responses": ["Food storage best practices for spoilage reduction:\n\n• Label everything with dates\n• Use color-coded systems\n• Set up expiry alerts\n• Implement temperature monitoring\n• Train staff on storage requirements\n• Create 'use first' sections\n• Plan promotions for near-expiry items"]
+    },
+    {
+      "tag": "data_privacy",
+      "patterns": ["is my data safe", "data privacy", "privacy policy", "data protection", "data security", "data encryption", "data confidentiality", "data safety", "data handling", "data management", "data compliance", "data regulations", "data rights", "data ownership", "data access", "data sharing", "data breach", "data risk"],
+      "responses": ["Yes, we use end-to-end encryption so that your data is safe."]
+    },
+    {
+      "tag": "cost reduction",
+      "patterns": ["cost","cost-saving", "cost reduction", "reduce costs", "cost management", "cost efficiency", "cost optimization", "cost control", "cost cutting", "cost savings", "kitchen cost reduction", "kitchen cost saving", "kitchen cost management", "kitchen cost efficiency", "kitchen cost optimization", "kitchen cost control", "kitchen cost cutting", "kitchen cost savings","save money in kitchen", "save money in restaurant", "save money"],
+      "responses": ["Cost-saving strategies for your kitchen:\n\n• Negotiate better supplier contracts\n• Buy in optimal quantities\n• Reduce prep waste through training\n• Optimize portion control\n• Use every part of ingredients\n• Implement energy-efficient practices\n• Track and analyze all expenses"]
+    },
+    {
+      "tag": "thanks",
+      "patterns": ["thank you", "thanks", "thanks a lot", "appreciate it", "grateful", "thankful", "much appreciated", "thanks for help", "thanks for assistance"],
+      "responses": ["You're welcome! I'm always here to help you run a more efficient and profitable kitchen."]
+    },
+    {
+      "tag": "help",
+      "patterns": ["help", "assist", "support", "need help", "can you help", "how can you assist", "what can you do", "what can you help with", "what services do you offer", "how can I get assistance", "how can I get support", "how can I get help", "what can you do for me", "what can you assist with", "what can you support me with"],
+      "responses": ["I can assist with kitchen management, waste reduction, inventory optimization, and more. How can I help you today?"]
+    },
+    {
+      "tag": "goodbye",
+      "patterns": ["bye", "goodbye", "see you", "talk later", "take care", "farewell", "catch you later", "see you soon", "until next time", "goodbye for now", "see you later"],
+      "responses": ["Goodbye! Reach out anytime you need roadside help."]
+    },
+    {
+      "tag": "fallback",
+      "patterns": ["", "unknown", "not sure", "what?", "huh", "I don't understand", "can you repeat", "can you explain", "what do you mean", "I need more information", "I don't know", "confused"],
+      "responses": ["I'm here to help with Kitchen assistance for your restaurant. Can you rephrase your question?"]
+    },
+    {
+      "tag": "about",
+      "patterns": ["about", "who are you", "what is WasteNoBite", "what do you do", "tell me about WasteNoBite", "WasteNoBite information", "WasteNoBite details", "WasteNoBite features", "WasteNoBite services", "WasteNoBite capabilities", "WasteNoBite description", "WasteNoBite introduction", "WasteNoBite overview", "WasteNoBite purpose", "WasteNoBite mission"],
+      "responses": ["WasteNoBite is an AI-powered kitchen assistant designed to help restaurants reduce food waste, optimize inventory, and improve overall kitchen efficiency. How can I assist you today?"]
+    }
+
+  ]
+}

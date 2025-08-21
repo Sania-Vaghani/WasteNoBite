@@ -75,39 +75,21 @@ export default function ChatBot(props) {
     },
   ]
 
-  const getBotResponse = (userMessage) => {
-    const message = userMessage.toLowerCase()
-
-    if (message.includes("waste") || message.includes("reduce")) {
-      return "Here are some effective ways to reduce food waste:\n\n• Implement FIFO (First In, First Out) rotation\n• Create daily specials using ingredients near expiry\n• Monitor portion sizes and adjust recipes\n• Use AI-powered demand forecasting\n• Train staff on proper storage techniques\n• Track waste patterns to identify problem areas\n\nWould you like specific tips for any particular food category?"
+  // Send user message to backend Django chatbot API and get response
+  const getBotResponse = async (userMessage) => {
+    try {
+      const res = await fetch("http://127.0.0.1:8000/api/chatbot/api/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ message: userMessage }),
+      })
+      const data = await res.json()
+      return data.response || "Sorry, I couldn't understand that. Please try again."
+    } catch (err) {
+      return "Error connecting to AI assistant. Please try again later."
     }
-
-    if (message.includes("inventory") || message.includes("stock")) {
-      return "Smart inventory management tips:\n\n• Use real-time tracking systems\n• Set up automatic reorder points\n• Implement barcode/QR scanning\n• Monitor temperature and humidity\n• Regular cycle counts\n• Categorize items by shelf life\n• Use predictive analytics for ordering\n\nNeed help with specific inventory challenges?"
-    }
-
-    if (message.includes("menu") || message.includes("optimization")) {
-      return "Menu optimization strategies:\n\n• Analyze dish profitability and popularity\n• Use seasonal ingredients for freshness\n• Create flexible recipes with substitutions\n• Implement dynamic pricing\n• Cross-utilize ingredients across dishes\n• Monitor customer preferences\n• A/B test new items\n\nWhat specific menu challenges are you facing?"
-    }
-
-    if (message.includes("expiry") || message.includes("spoilage")) {
-      return "Food expiry management best practices:\n\n• Label everything with dates\n• Use color-coded systems\n• Set up expiry alerts\n• Implement temperature monitoring\n• Train staff on storage requirements\n• Create 'use first' sections\n• Plan promotions for near-expiry items\n\nWhich food categories need the most attention?"
-    }
-
-    if (message.includes("cost") || message.includes("save") || message.includes("money")) {
-      return "Cost-saving strategies for your kitchen:\n\n• Negotiate better supplier contracts\n• Buy in optimal quantities\n• Reduce prep waste through training\n• Optimize portion control\n• Use every part of ingredients\n• Implement energy-efficient practices\n• Track and analyze all expenses\n\nWhat's your biggest cost concern right now?"
-    }
-
-    if (message.includes("hello") || message.includes("hi") || message.includes("help")) {
-      return "Hello! I'm here to help you optimize your kitchen operations. I can assist with:\n\n🗑️ Waste reduction strategies\n📦 Inventory management\n👨‍🍳 Menu optimization\n⏰ Food expiry tracking\n💰 Cost saving tips\n📊 Analytics insights\n\nWhat would you like to explore first?"
-    }
-
-    if (message.includes("thank")) {
-      return "You're welcome! I'm always here to help you run a more efficient and profitable kitchen. Feel free to ask me anything about food management, waste reduction, or operational optimization anytime! 🍽️✨"
-    }
-
-    // Default response
-    return "I'd be happy to help you with that! As your AI kitchen assistant, I specialize in:\n\n• Food waste reduction\n• Inventory optimization\n• Menu planning\n• Cost management\n• Operational efficiency\n\nCould you be more specific about what you'd like to know? Or try one of the quick questions below!"
   }
 
   const handleSendMessage = async () => {
@@ -124,20 +106,16 @@ export default function ChatBot(props) {
     setInputMessage("")
     setIsTyping(true)
 
-    // Simulate AI thinking time
-    setTimeout(
-      () => {
-        const botResponse = {
-          id: messages.length + 2,
-          type: "bot",
-          message: getBotResponse(inputMessage),
-          timestamp: new Date(),
-        }
-        setMessages((prev) => [...prev, botResponse])
-        setIsTyping(false)
-      },
-      1000 + Math.random() * 1000,
-    )
+    // Get response from backend chatbot
+    const botReply = await getBotResponse(inputMessage)
+    const botResponse = {
+      id: messages.length + 2,
+      type: "bot",
+      message: botReply,
+      timestamp: new Date(),
+    }
+    setMessages((prev) => [...prev, botResponse])
+    setIsTyping(false)
   }
 
   const handleQuickQuestion = (question) => {
