@@ -8,3 +8,5 @@ django-cors-headers
 reportlab==4.0.4
 nltk
 textblob
+pandas
+scikit-learn

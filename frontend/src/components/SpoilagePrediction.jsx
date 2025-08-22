@@ -15,6 +15,8 @@ export default function SpoilagePrediction() {
   const [currentTime, setCurrentTime] = useState(new Date())
   const [ingredientData, setIngredientData] = useState([])
   const [debugOpen, setDebugOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
 
   // ---------- Helpers ----------
   const keyOf = (name, date) => {
@@ -70,48 +72,56 @@ export default function SpoilagePrediction() {
   }
 
   // ---------- Fetch & Join ----------
+  // Fetch spoilage prediction data
+  const fetchSpoilageData = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("http://127.0.0.1:8000/api/spoilage-prediction/predict/");
+      if (!res.ok) throw new Error("Failed to fetch spoilage prediction data");
+      const data = await res.json();
+      if (!(data.predictions && data.related_items)) {
+        setError("API shape unexpected");
+        setIngredientData([]);
+        setLoading(false);
+        return;
+      }
+      const relatedIndex = new Map();
+      for (const r of data.related_items) {
+        const k = keyOf(r["Item Name"], r["Purchase Date"]);
+        relatedIndex.set(k, r);
+      }
+      const combined = data.predictions.map((p, idx) => {
+        const k = keyOf(p["Item Name"], p["Purchase Date"]);
+        const related = relatedIndex.get(k) || data.related_items[idx] || {};
+        const name = p["Item Name"] || related["Item Name"] || "Unknown";
+        const freshness = Number(p["Freshness Percentage"] || 0);
+        const daysLeft = Number(p["Estimated Days Remaining"] || 0);
+        const rawCat = (related?.Category ?? p?.Category ?? "Other");
+        const category = normalizeCategory(rawCat, name);
+        return {
+          id: idx + 1,
+          name,
+          rawCategory: rawCat,
+          category,
+          freshness,
+          estimatedDaysLeft: daysLeft,
+          maxLifespan: (related?.["Max lifespan"] ?? p?.["Max lifespan"] ?? 0),
+          status: computeStatus(freshness, daysLeft),
+        };
+      });
+      setIngredientData(combined);
+    } catch (err) {
+      setError("Error fetching predictions");
+      setIngredientData([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    fetch("http://127.0.0.1:8000/api/spoilage-prediction/predict/")
-      .then((res) => res.json())
-      .then((data) => {
-        if (!(data.predictions && data.related_items)) {
-          console.warn("API shape unexpected:", data)
-          setIngredientData([])
-          return
-        }
-
-        const relatedIndex = new Map()
-        for (const r of data.related_items) {
-          const k = keyOf(r["Item Name"], r["Purchase Date"])
-          relatedIndex.set(k, r)
-        }
-
-        const combined = data.predictions.map((p, idx) => {
-          const k = keyOf(p["Item Name"], p["Purchase Date"])
-          const related = relatedIndex.get(k) || data.related_items[idx] || {}
-
-          const name = p["Item Name"] || related["Item Name"] || "Unknown"
-          const freshness = Number(p["Freshness Percentage"] || 0)
-          const daysLeft = Number(p["Estimated Days Remaining"] || 0)
-          const rawCat = (related?.Category ?? p?.Category ?? "Other")
-          const category = normalizeCategory(rawCat, name)
-
-          return {
-            id: idx + 1,
-            name,
-            rawCategory: rawCat,
-            category,
-            freshness,
-            estimatedDaysLeft: daysLeft,
-            maxLifespan: (related?.["Max lifespan"] ?? p?.["Max lifespan"] ?? 0),
-            status: computeStatus(freshness, daysLeft),
-          }
-        })
-
-        setIngredientData(combined)
-      })
-      .catch((err) => console.error("Error fetching predictions:", err))
-  }, [])
+    fetchSpoilageData();
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 60000)
@@ -209,6 +219,29 @@ export default function SpoilagePrediction() {
 
   return (
     <div className="space-y-6">
+      {loading && (
+        <div className="flex items-center justify-center h-64">
+          <div className="flex items-center space-x-2">
+            {/* Loader2 icon from lucide-react, fallback to spinner */}
+            <svg className="animate-spin h-6 w-6 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg>
+            <span className="text-gray-600">Loading spoilage prediction data...</span>
+          </div>
+        </div>
+      )}
+      {error && !loading && (
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Error loading data</h3>
+            <p className="text-gray-600 mb-4">{error}</p>
+            <Button onClick={fetchSpoilageData} className="bg-blue-500 hover:bg-blue-600">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Retry
+            </Button>
+          </div>
+        </div>
+      )}
+      {/* ...existing code... */}
       {/* Header */}
       <div className="flex flex-col space-y-4">
         <div className="flex items-center justify-between">
@@ -296,7 +329,7 @@ export default function SpoilagePrediction() {
               variant="outline"
               size="sm"
               className="border-blue-200 text-blue-700 hover:bg-blue-50 bg-transparent"
-              onClick={() => window.location.reload()}
+              onClick={fetchSpoilageData}
             >
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh

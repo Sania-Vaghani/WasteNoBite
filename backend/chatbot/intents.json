@@ -6,9 +6,18 @@
       "responses": ["Hello! Welcome to WasteNoBite. How can I help you today?"]
     },
     {
-      "tag": "waste",
-      "patterns": ["waste", "garbage", "trash", "rubbish", "litter", "food waste", "reduce waste", "waste management", "waste reduction", "waste disposal", "waste recycling", "waste minimization", "waste prevention", "waste collection", "waste sorting", "waste treatment", "waste segregation"],
-      "responses": ["Here are some effective ways to reduce food waste:\n\n• Implement FIFO (First In, First Out) rotation\n• Create daily specials using ingredients near expiry\n• Monitor portion sizes and adjust recipes\n• Use AI-powered demand forecasting\n• Train staff on proper storage techniques\n• Track waste patterns to identify problem areas"]
+      "tag": "waste_handling",
+      "patterns": ["food waste", "reduce food waste", "waste management", "how to handle food waste", "waste solutions", "waste tips", "waste ideas", "waste disposal", "waste recycling", "waste minimization", "waste prevention", "waste collection", "waste sorting", "waste treatment", "waste segregation", "composting", "donate food", "repurpose leftovers", "upcycle food", "food waste strategies"],
+      "responses": [
+        "Ways to handle food waste:\n\n• Implement FIFO (First In, First Out) rotation\n• Create daily specials using ingredients near expiry\n• Monitor portion sizes and adjust recipes\n• Use AI-powered demand forecasting\n• Train staff on proper storage techniques\n• Track waste patterns to identify problem areas\n• Compost organic waste\n• Donate surplus food to charities\n• Repurpose leftovers into new dishes\n• Upcycle food scraps for stocks, sauces, or animal feed\n• Use food waste tracking apps\n• Educate staff and customers on waste reduction"
+      ]
+    },
+    {
+      "tag": "recipe_suggestions",
+      "patterns": ["what can I cook with", "recipes for", "suggest recipes", "what dishes can I make", "give me recipes", "show recipes", "possible recipes", "what can I make with", "ingredient recipes", "menu ideas", "dish ideas", "recipe ideas", "I have these ingredients", "I want to cook with", "suggest dishes"],
+      "responses": [
+        "Tell me the ingredients you have, and I'll suggest recipes you can make!\n\nFor example, if you have tomatoes, cheese, and bread, you can make:\n• Grilled Cheese Sandwich\n• Tomato Soup\n• Cheese & Tomato Bruschetta\n• Caprese Salad\n• Pizza Toast\n\nJust list your ingredients and I'll give you more ideas!"
+      ]
     },
     {
       "tag": "inventory",
