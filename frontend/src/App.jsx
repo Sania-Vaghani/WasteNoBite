@@ -33,6 +33,7 @@ import {
   Target,
   Activity,
 } from "lucide-react"
+
 import InventoryManagement from "./components/InventoryManagement"
 import WasteAnalytics from "./components/WasteAnalytics"
 import MenuOptimization from "./components/MenuOptimization"
@@ -58,11 +59,12 @@ export default function WasteNoBiteApp() {
   const [selectedCategory, setSelectedCategory] = useState("Fruit");
   const [predictedSalesData, setPredictedSalesData] = useState([]);
   const [upcomingExpirations, setUpcomingExpirations] = useState([]);
+  const [overviewStats, setOverviewStats] = useState([]);
 
   // Add-to-inventory form state (for Order modal repurposed as Add Purchase)
   const [orderCategory, setOrderCategory] = useState("")
-  const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().slice(0,10))
-  const [expiryDate, setExpiryDate] = useState(() => { const d = new Date(); d.setDate(d.getDate()+3); return d.toISOString().slice(0,10) })
+  const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().slice(0, 10))
+  const [expiryDate, setExpiryDate] = useState(() => { const d = new Date(); d.setDate(d.getDate() + 3); return d.toISOString().slice(0, 10) })
   const [storageTemp, setStorageTemp] = useState("")
   const [humidity, setHumidity] = useState("")
   const [costPerUnit, setCostPerUnit] = useState("")
@@ -83,8 +85,8 @@ export default function WasteNoBiteApp() {
     if (!selectedDish || !orderCategory || !orderQuantity || !purchaseDate || !expiryDate) return
     try {
       setOrderStatus("loading")
-      const maxLifespan = Math.max(0, Math.ceil((new Date(expiryDate) - new Date(purchaseDate)) / (1000*60*60*24)))
-      const daysLeft = Math.max(0, Math.ceil((new Date(expiryDate) - new Date()) / (1000*60*60*24)))
+      const maxLifespan = Math.max(0, Math.ceil((new Date(expiryDate) - new Date(purchaseDate)) / (1000 * 60 * 60 * 24)))
+      const daysLeft = Math.max(0, Math.ceil((new Date(expiryDate) - new Date()) / (1000 * 60 * 60 * 24)))
       const freshnessPercentage = Math.min(100, Math.max(0, Math.round((daysLeft / (maxLifespan || 1)) * 100)))
       const highRisk = daysLeft <= 2 ? 1 : 0
       const payload = {
@@ -184,9 +186,9 @@ export default function WasteNoBiteApp() {
 
   useEffect(() => {
     fetch("http://localhost:8000/api/upcoming-expirations/")
-        .then(res => res.json())
-        .then(data => setUpcomingExpirations(data.data || []))
-        .catch(err => console.error(err));
+      .then(res => res.json())
+      .then(data => setUpcomingExpirations(data.data || []))
+      .catch(err => console.error(err));
   }, []);
 
   // Load inventory items when Order modal is opened (used to drive dropdown options / category autofill)
@@ -214,6 +216,55 @@ export default function WasteNoBiteApp() {
         .filter(n => n.length > 0)
     )
   ).sort((a, b) => a.localeCompare(b))
+
+  useEffect(() => {
+    fetch("http://localhost:8000/api/dashboard-stats/")
+      .then((res) => res.json())
+      .then((data) => {
+        const safe = (obj, key, fallback = 0) =>
+          obj && obj[key] !== undefined ? obj[key] : fallback;
+
+        setOverviewStats([
+          {
+            title: "Total Inventory Items",
+            value: safe(data.total_items, "value", 0),
+            change: safe(data.total_items, "change", 0), // keep as number
+            icon: Package,
+            gradient: "from-blue-500 to-indigo-500",
+            bgGradient: "from-blue-50 to-indigo-50",
+            borderColor: "border-blue-200",
+          },
+          {
+            title: "Items Near Expiry",
+            value: safe(data.items_near_expiry, "value", 0),
+            change: safe(data.items_near_expiry, "change", 0),
+            icon: Clock,
+            gradient: "from-orange-500 to-red-500",
+            bgGradient: "from-orange-50 to-red-50",
+            borderColor: "border-orange-200",
+          },
+          {
+            title: "Waste Analysis",
+            value: safe(data.waste_percentage, "value", 0),
+            change: safe(data.waste_percentage, "change", 0),
+            icon: Trash2,
+            gradient: "from-green-500 to-emerald-500",
+            bgGradient: "from-green-50 to-emerald-50",
+            borderColor: "border-green-200",
+          },
+          {
+            title: "Efficiency Score",
+            value: safe(data.efficiency, "value", 0),
+            change: safe(data.efficiency, "change", 0),
+            icon: Activity,
+            gradient: "from-purple-500 to-pink-500",
+            bgGradient: "from-purple-50 to-pink-50",
+            borderColor: "border-purple-200",
+          },
+        ]);
+      });
+  }, []);
+
 
   useEffect(() => {
     const fetchInventoryData = async () => {
@@ -263,48 +314,48 @@ export default function WasteNoBiteApp() {
 
 
   // Updated overview stats according to requirements
-  const overviewStats = [
-    {
-      title: "Total Inventory Items",
-      value: "247",
-      change: "+12 items",
-      trend: "up",
-      icon: Package,
-      gradient: "from-blue-500 to-indigo-500",
-      bgGradient: "from-blue-50 to-indigo-50",
-      borderColor: "border-blue-200",
-    },
-    {
-      title: "Items Near Expiry",
-      value: "16",
-      change: "-3 vs yesterday",
-      trend: "down",
-      icon: Clock,
-      gradient: "from-orange-500 to-red-500",
-      bgGradient: "from-orange-50 to-red-50",
-      borderColor: "border-orange-200",
-    },
-    {
-      title: "Waste Analysis",
-      value: "24%",
-      change: "-8% improvement",
-      trend: "down",
-      icon: Trash2,
-      gradient: "from-green-500 to-emerald-500",
-      bgGradient: "from-green-50 to-emerald-50",
-      borderColor: "border-green-200",
-    },
-    {
-      title: "Efficiency Score",
-      value: "86%",
-      change: "+2% from last month",
-      trend: "up",
-      icon: Activity,
-      gradient: "from-purple-500 to-pink-500",
-      bgGradient: "from-purple-50 to-pink-50",
-      borderColor: "border-purple-200",
-    },
-  ]
+  // const overviewStats = [
+  //   {
+  //     title: "Total Inventory Items",
+  //     value: "247",
+  //     change: "+12 items",
+  //     trend: "up",
+  //     icon: Package,
+  //     gradient: "from-blue-500 to-indigo-500",
+  //     bgGradient: "from-blue-50 to-indigo-50",
+  //     borderColor: "border-blue-200",
+  //   },
+  //   {
+  //     title: "Items Near Expiry",
+  //     value: "16",
+  //     change: "-3 vs yesterday",
+  //     trend: "down",
+  //     icon: Clock,
+  //     gradient: "from-orange-500 to-red-500",
+  //     bgGradient: "from-orange-50 to-red-50",
+  //     borderColor: "border-orange-200",
+  //   },
+  //   {
+  //     title: "Waste Analysis",
+  //     value: "24%",
+  //     change: "-8% improvement",
+  //     trend: "down",
+  //     icon: Trash2,
+  //     gradient: "from-green-500 to-emerald-500",
+  //     bgGradient: "from-green-50 to-emerald-50",
+  //     borderColor: "border-green-200",
+  //   },
+  //   {
+  //     title: "Efficiency Score",
+  //     value: "86%",
+  //     change: "+2% from last month",
+  //     trend: "up",
+  //     icon: Activity,
+  //     gradient: "from-purple-500 to-pink-500",
+  //     bgGradient: "from-purple-50 to-pink-50",
+  //     borderColor: "border-purple-200",
+  //   },
+  // ]
 
   // Category breakdown for detailed analysis
   const salesCategories = [
@@ -370,7 +421,7 @@ export default function WasteNoBiteApp() {
               </Button>
 
               {/* Order Food Button */}
-              <Dialog open={isOrderModalOpen} onOpenChange={(open)=>{ setIsOrderModalOpen(open); if(open){ setOrderStatus(""); setOrderErrorMessage(""); } }}>
+              <Dialog open={isOrderModalOpen} onOpenChange={(open) => { setIsOrderModalOpen(open); if (open) { setOrderStatus(""); setOrderErrorMessage(""); } }}>
                 <DialogTrigger asChild>
                   <Button
                     size="sm"
@@ -390,7 +441,7 @@ export default function WasteNoBiteApp() {
                     {/* Inventory Item Selection */}
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-gray-700">Item Name</label>
-                      <Select value={selectedDish} onValueChange={(val)=>{
+                      <Select value={selectedDish} onValueChange={(val) => {
                         setSelectedDish(val)
                         // Auto-fill category if known in existing items
                         const found = orderInventoryItems.find(i => i.name?.toLowerCase() === val.toLowerCase())
@@ -421,7 +472,7 @@ export default function WasteNoBiteApp() {
                           <SelectValue placeholder="Choose a category" />
                         </SelectTrigger>
                         <SelectContent>
-                          {['Vegetable','Fruit','Meat','Dairy','Seafood'].map(c => (
+                          {['Vegetable', 'Fruit', 'Meat', 'Dairy', 'Seafood'].map(c => (
                             <SelectItem key={c} value={c}>{c}</SelectItem>
                           ))}
                         </SelectContent>
@@ -431,27 +482,27 @@ export default function WasteNoBiteApp() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-700">Purchase Date</label>
-                        <Input type="date" value={purchaseDate} onChange={(e)=>setPurchaseDate(e.target.value)} className="border-blue-200 focus:border-blue-400" />
+                        <Input type="date" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} className="border-blue-200 focus:border-blue-400" />
                       </div>
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-700">Expiry Date</label>
-                        <Input type="date" value={expiryDate} onChange={(e)=>setExpiryDate(e.target.value)} className="border-blue-200 focus:border-blue-400" />
+                        <Input type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} className="border-blue-200 focus:border-blue-400" />
                       </div>
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-700">Quantity Purchased</label>
-                        <Input type="number" min="1" value={orderQuantity} onChange={(e)=>setOrderQuantity(e.target.value)} className="border-blue-200 focus:border-blue-400" placeholder="5" />
+                        <Input type="number" min="1" value={orderQuantity} onChange={(e) => setOrderQuantity(e.target.value)} className="border-blue-200 focus:border-blue-400" placeholder="5" />
                       </div>
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-700">Cost Per Unit</label>
-                        <Input type="number" min="0" step="0.01" value={costPerUnit} onChange={(e)=>setCostPerUnit(e.target.value)} className="border-blue-200 focus:border-blue-400" placeholder="6" />
+                        <Input type="number" min="0" step="0.01" value={costPerUnit} onChange={(e) => setCostPerUnit(e.target.value)} className="border-blue-200 focus:border-blue-400" placeholder="6" />
                       </div>
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-700">Storage Temperature (°C)</label>
-                        <Input type="number" value={storageTemp} onChange={(e)=>setStorageTemp(e.target.value)} className="border-blue-200 focus:border-blue-400" placeholder="2" />
+                        <Input type="number" value={storageTemp} onChange={(e) => setStorageTemp(e.target.value)} className="border-blue-200 focus:border-blue-400" placeholder="2" />
                       </div>
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-gray-700">Humidity (%)</label>
-                        <Input type="number" value={humidity} onChange={(e)=>setHumidity(e.target.value)} className="border-blue-200 focus:border-blue-400" placeholder="85" />
+                        <Input type="number" value={humidity} onChange={(e) => setHumidity(e.target.value)} className="border-blue-200 focus:border-blue-400" placeholder="85" />
                       </div>
                       {/* Freshness level is computed automatically by backend from dates; no manual input */}
                     </div>
@@ -565,7 +616,7 @@ export default function WasteNoBiteApp() {
 
           <TabsContent value="overview" className="space-y-6">
             {/* Updated Stats Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {overviewStats.map((stat, index) => (
                 <Card
                   key={index}
@@ -592,6 +643,46 @@ export default function WasteNoBiteApp() {
                   </CardContent>
                 </Card>
               ))}
+            </div> */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {overviewStats.map((stat, index) => {
+                const isPositive = stat.change >= 0;
+                const displayChange = `${isPositive ? "+" : "-"}${Math.abs(stat.change)}% vs yesterday`;
+
+
+                return (
+                  <Card
+                    key={index}
+                    className={`bg-gradient-to-br ${stat.bgGradient} ${stat.borderColor} border shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1`}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-gray-700 truncate">{stat.title}</p>
+                          <p className="text-xl font-bold text-gray-900 mt-1">{stat.value}</p>
+                          <div className="flex items-center mt-1">
+                            {isPositive ? (
+                              <TrendingUp className="h-3 w-3 text-green-600 mr-1" />
+                            ) : (
+                              <TrendingDown className="h-3 w-3 text-red-600 mr-1" />
+                            )}
+                            <span
+                              className={`text-xs font-medium ${isPositive ? "text-green-600" : "text-red-600"}`}
+                            >
+                              {displayChange}
+                            </span>
+                          </div>
+                        </div>
+                        <div
+                          className={`p-2 bg-gradient-to-r ${stat.gradient} rounded-full shadow-lg ml-2`}
+                        >
+                          <stat.icon className="h-5 w-5 text-white" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -640,11 +731,10 @@ export default function WasteNoBiteApp() {
                                   title={`Target: ${day.target_sales_percent}%`}
                                 ></div>
                                 <div
-                                  className={`w-6 rounded-t-sm shadow-lg ${
-                                    day.actual_sales_percent >= day.target_sales_percent
-                                      ? "bg-gradient-to-t from-green-500 to-emerald-500"
-                                      : "bg-gradient-to-t from-orange-500 to-red-500"
-                                  }`}
+                                  className={`w-6 rounded-t-sm shadow-lg ${day.actual_sales_percent >= day.target_sales_percent
+                                    ? "bg-gradient-to-t from-green-500 to-emerald-500"
+                                    : "bg-gradient-to-t from-orange-500 to-red-500"
+                                    }`}
                                   style={{ height: `${salesHeight}px`, position: "relative" }}
                                   title={`Sales: ${day.actual_sales_percent}%`}
                                 >
@@ -774,31 +864,28 @@ export default function WasteNoBiteApp() {
                 <div className="flex bg-gray-100 rounded-lg p-1 mb-4">
                   <button
                     onClick={() => setInventoryOptimizationTab("overstocked")}
-                    className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
-                      inventoryOptimizationTab === "overstocked"
-                        ? "bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md"
-                        : "text-gray-600 hover:text-gray-800"
-                    }`}
+                    className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${inventoryOptimizationTab === "overstocked"
+                      ? "bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md"
+                      : "text-gray-600 hover:text-gray-800"
+                      }`}
                   >
                     Overstocked
                   </button>
                   <button
                     onClick={() => setInventoryOptimizationTab("understocked")}
-                    className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
-                      inventoryOptimizationTab === "understocked"
-                        ? "bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md"
-                        : "text-gray-600 hover:text-gray-800"
-                    }`}
+                    className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${inventoryOptimizationTab === "understocked"
+                      ? "bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md"
+                      : "text-gray-600 hover:text-gray-800"
+                      }`}
                   >
                     Understocked
                   </button>
                   <button
                     onClick={() => setInventoryOptimizationTab("optimal")}
-                    className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
-                      inventoryOptimizationTab === "optimal"
-                        ? "bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md"
-                        : "text-gray-600 hover:text-gray-800"
-                    }`}
+                    className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${inventoryOptimizationTab === "optimal"
+                      ? "bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md"
+                      : "text-gray-600 hover:text-gray-800"
+                      }`}
                   >
                     Optimal Levels
                   </button>
@@ -806,7 +893,7 @@ export default function WasteNoBiteApp() {
 
                 {/* Tab Content */}
                 <div className="space-y-3">
-                  {(inventoryOptimizationData[inventoryOptimizationTab]||[]).map((item, index) => (
+                  {(inventoryOptimizationData[inventoryOptimizationTab] || []).map((item, index) => (
                     <div
                       key={index}
                       className={`p-4 rounded-lg border ${item.bg} ${item.border} hover:shadow-md transition-all`}
@@ -826,52 +913,6 @@ export default function WasteNoBiteApp() {
                       </div>
                     </div>
                   ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Compact Quick Actions */}
-            <Card className="bg-white/80 backdrop-blur-sm border-orange-200 shadow-xl">
-              <CardHeader className="bg-gradient-to-r from-emerald-500 to-green-500 text-white rounded-t-lg p-4">
-                <CardTitle className="flex items-center text-base">
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  Quick Actions
-                </CardTitle>
-                <CardDescription className="text-emerald-100 text-xs">
-                  Common tasks and AI-powered recommendations
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-4">
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                  <Button
-                    onClick={() => setIsScannerOpen(true)}
-                    className="h-16 flex-col space-y-1 bg-gradient-to-br from-orange-50 to-red-50 border-orange-200 text-orange-700 hover:from-orange-100 hover:to-red-100 hover:shadow-lg transition-all text-xs"
-                    variant="outline"
-                  >
-                    <Camera className="h-5 w-5" />
-                    <span className="font-medium text-center leading-tight">Scan Inventory</span>
-                  </Button>
-                  <Button
-                    className="h-16 flex-col space-y-1 bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200 text-blue-700 hover:from-blue-100 hover:to-indigo-100 hover:shadow-lg transition-all text-xs"
-                    variant="outline"
-                  >
-                    <BarChart3 className="h-5 w-5" />
-                    <span className="font-medium text-center leading-tight">Generate Report</span>
-                  </Button>
-                  <Button
-                    className="h-16 flex-col space-y-1 bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200 text-purple-700 hover:from-purple-100 hover:to-pink-100 hover:shadow-lg transition-all text-xs"
-                    variant="outline"
-                  >
-                    <ChefHat className="h-5 w-5" />
-                    <span className="font-medium text-center leading-tight">Menu Suggestions</span>
-                  </Button>
-                  <Button
-                    className="h-16 flex-col space-y-1 bg-gradient-to-br from-green-50 to-emerald-50 border-green-200 text-green-700 hover:from-green-100 hover:to-emerald-100 hover:shadow-lg transition-all text-xs"
-                    variant="outline"
-                  >
-                    <Trash2 className="h-5 w-5" />
-                    <span className="font-medium text-center leading-tight">Log Waste</span>
-                  </Button>
                 </div>
               </CardContent>
             </Card>

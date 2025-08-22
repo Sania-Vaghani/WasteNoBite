@@ -9,6 +9,7 @@ urlpatterns = [
     path('send-otp', views.send_otp, name='send_otp'),
     path('reset_password', views.reset_password, name='reset_password'),
     path('verify_otp', views.verify_otp, name='verify_otp'),
+    path("dashboard-stats/", views.get_dashboard_stats, name="dashboard_stats"),
     path('predict-category-sales/', views.predict_category_sales, name='predict_category_sales'),
     path('upcoming-expirations/', views.upcoming_expirations_view, name='upcoming_expirations'),
     path('inventory-levels/', views.get_inventory_levels, name='get_inventory_levels'),

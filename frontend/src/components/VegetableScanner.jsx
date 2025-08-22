@@ -458,8 +458,8 @@ export default function VegetableScanner(props) {
 
         {/* Header Banner */}
         <div className="bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg p-6 mb-6 text-center">
-          <h2 className="text-2xl font-bold mb-2">Vegetable Detection</h2>
-          <p className="text-green-100">Upload an image to identify and count vegetables</p>
+          <h2 className="text-2xl font-bold mb-2">Item Detection</h2>
+          <p className="text-green-100">Upload an image to identify and count items</p>
         </div>
 
         {/* Upload Step */}
@@ -549,7 +549,7 @@ export default function VegetableScanner(props) {
               </div>
               <div>
                 <h3 className="text-xl font-bold text-gray-900 mb-2">Processing Image...</h3>
-                <p className="text-gray-600">AI is analyzing your image to detect vegetables</p>
+                <p className="text-gray-600">AI is analyzing your image to detect items</p>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2 max-w-md mx-auto">
                 <div

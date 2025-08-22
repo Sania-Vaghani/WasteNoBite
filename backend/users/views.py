@@ -657,6 +657,7 @@ def upcoming_expirations_view(request):
                 "Item Name": 1,
                 "Quantity Purchased": 1,
                 "Quantity Used": 1,
+                "Quantity Wasted": 1,   # ✅ include wasted field
                 "Expiry Date": 1
             }
         ))
@@ -677,6 +678,10 @@ def upcoming_expirations_view(request):
 
             # only include items expiring in <=7 days
             if today <= expiration_date <= threshold_date:
+                # ✅ skip if Quantity Wasted is 0
+                if item.get("Quantity Wasted", 0) == 0:
+                    continue  
+
                 remaining_days = (expiration_date - today).days
                 quantity_purchased = item.get("Quantity Purchased", 0)
                 quantity_used = item.get("Quantity Used", 0)
@@ -692,7 +697,6 @@ def upcoming_expirations_view(request):
 
     except Exception as e:
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
-
 
 def get_inventory_levels(request):
     from django.http import JsonResponse
@@ -727,9 +731,12 @@ def get_inventory_levels(request):
                     continue
 
         if expiry_date and expiry_date > now:
+            # Skip if Quantity Wasted is 0
+            if item.get("Quantity Wasted", 0) == 0:
+                continue # Skip if Quantity Wasted is 0
             valid_items.append(item)
 
-    print(f"[DEBUG] Total items: {len(items)}, Non-expired: {len(valid_items)}")
+    print(f"[DEBUG] Total items: {len(items)}, Non-expired: {len(valid_items)}") 
 
     # 3. Classification
     levels = {"understocked": [], "overstocked": [], "optimal": []}
@@ -840,3 +847,146 @@ def detect_image(request):
             {"error": str(e), "trace": traceback.format_exc()},
             status=500
         )
+        
+from datetime import datetime, timedelta
+from pymongo import MongoClient
+from django.conf import settings
+
+def store_daily_stats():
+    mongo_url = settings.DATABASES['default']['CLIENT']['host']
+    mongo_db = settings.DATABASES['default']['NAME']
+    client = MongoClient(mongo_url)
+    db = client[mongo_db]
+
+    inventory = db['inventory_items']
+    stats_collection = db['dashboard_stats']
+
+    today = datetime.today().date()
+
+    # Calculate stats (same as before)
+    total_items = inventory.count_documents({})
+    items_near_expiry = inventory.count_documents({
+        "Expiry Date": {
+            "$lte": (today + timedelta(days=2)).strftime("%d-%m-%Y")
+        }
+    })
+    expired_items = inventory.count_documents({
+        "Expiry Date": {"$lt": today.strftime("%d-%m-%Y")}
+    })
+    waste_percentage = (expired_items / total_items * 100) if total_items > 0 else 0
+    efficiency = 100 - waste_percentage
+
+    # Insert into dashboard_stats
+    stats_collection.update_one(
+        {"date": today.strftime("%Y-%m-%d")},  # use date as unique
+        {"$set": {
+            "total_items": total_items,
+            "items_near_expiry": items_near_expiry,
+            "expired_items": expired_items,
+            "waste_percentage": round(waste_percentage, 2),
+            "efficiency": round(efficiency, 2)
+        }},
+        upsert=True
+    )
+
+from datetime import datetime, timedelta
+from django.http import JsonResponse
+from pymongo import MongoClient
+from django.conf import settings
+
+def get_dashboard_stats(request):
+    # Connect to MongoDB
+    client = MongoClient(settings.DATABASES['default']['CLIENT']['host'])
+    db = client[settings.DATABASES['default']['NAME']]
+    collection = db['dashboard_stats']
+
+    # Current date and day before
+    today = datetime.today().strftime("%Y-%m-%d")
+    yesterday = (datetime.today() - timedelta(days=1)).strftime("%Y-%m-%d")
+
+    print("📅 Today:", today)
+    print("📅 Yesterday:", yesterday)
+
+    # Fetch stats
+    today_doc = collection.find_one({"date": today}) or {}
+    yesterday_doc = collection.find_one({"date": yesterday}) or {}
+
+    print("🔹 Today Document:", today_doc)
+    print("🔹 Yesterday Document:", yesterday_doc)
+
+    def make_stat(field):
+        today_val = today_doc.get(field, 0) or 0
+        yesterday_val = yesterday_doc.get(field, 0) or 0
+
+        print(f"\nField: {field}")
+        print(f"👉 Today Value: {today_val}")
+        print(f"👉 Yesterday Value: {yesterday_val}")
+
+        if yesterday_val and yesterday_val != 0:
+            change = ((today_val - yesterday_val) / yesterday_val) * 100
+        else:
+            change = 0  # Avoid NaN
+
+        print(f"✅ Change (%): {change}")
+        return {
+            "value": today_val,
+            "change": round(change, 2)
+        }
+
+    data = {
+        "total_items": make_stat("total_items"),
+        "items_near_expiry": make_stat("items_near_expiry"),
+        "waste_percentage": make_stat("waste_percentage"),
+        "efficiency": make_stat("efficiency"),
+    }
+
+    print("\n📊 Final Dashboard Data:", data)
+
+    return JsonResponse(data, safe=False)
+
+# def get_dashboard_stats(request):
+#     mongo_url = settings.DATABASES['default']['CLIENT']['host']
+#     mongo_db = settings.DATABASES['default']['NAME']
+#     client = MongoClient(mongo_url)
+#     db = client[mongo_db]
+#     inventory = db['inventory_items']
+    
+#     today = datetime.today().date()
+#     yesterday = today - timedelta(days=1)
+
+#     # Total items (today)
+#     total_items = inventory.count_documents({})
+
+#     # Items near expiry (<= 2 days left)
+#     items_near_expiry = inventory.count_documents({
+#         "Expiry Date": {
+#             "$lte": (today + timedelta(days=2)).strftime("%d-%m-%Y")
+#         }
+#     })
+
+#     # Waste Analysis (% expired items)
+#     expired_items = inventory.count_documents({
+#         "Expiry Date": {"$lt": today.strftime("%d-%m-%Y")}
+#     })
+#     waste_percentage = (expired_items / total_items * 100) if total_items > 0 else 0
+
+#     # Efficiency Score (dummy formula for now)
+#     efficiency = 100 - waste_percentage
+
+#     # Yesterday's total items (to calculate growth/drop)
+#     yesterday_total = inventory.count_documents({
+#         "Purchase Date": {"$lte": yesterday.strftime("%d-%m-%Y")}
+#     })
+
+#     # Difference
+#     item_difference = total_items - yesterday_total
+#     trend_direction = "up" if item_difference > 0 else "down" if item_difference < 0 else "same"
+
+#     return JsonResponse({
+#         "total_items": total_items,
+#         "items_near_expiry": items_near_expiry,
+#         "waste_percentage": round(waste_percentage, 2),
+#         "efficiency": round(efficiency, 2),
+#         "item_difference": abs(item_difference),  # always positive value
+#         "trend_direction": trend_direction        # frontend decides +green or -red
+#     })

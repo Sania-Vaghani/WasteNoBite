@@ -75,7 +75,7 @@ def predict_spoilage(request):
             freshness = [round(float(pred), 2) for pred in predictions]
             estimated_days = [None] * len(predictions)
 
-        # Step 3: Filter out items already expired (Expiry Date < now)
+        # Step 3: Filter out expired or Quantity Wasted == 0
         filtered_results = []
         dates_to_check = set()
         now = datetime.utcnow()
@@ -87,19 +87,27 @@ def predict_spoilage(request):
             if isinstance(expiry_date, str):
                 expiry_date = parser.parse(expiry_date)
 
-            # skip if expired
+            # skip expired
             if expiry_date < now:
                 continue
 
-            # fallback: use prediction or Days_To_Expiry
+            # skip items with no waste
+            if item.get("Quantity Wasted", 0) == 0:
+                continue
+
             days_left = estimated_days[i] if estimated_days[i] is not None else item["Days_To_Expiry"]
+
+            # ensure it doesn’t exceed max lifespan
+            max_life = item.get("Max lifespan", 0)
+            if max_life and days_left > max_life:
+                days_left = max_life - 2
+
 
             filtered_results.append({
                 "Item Name": item.get("Item Name", "Unknown"),
                 "Purchase Date": item.get("Purchase Date"),
                 "Freshness Percentage": freshness[i],
                 "Estimated Days Remaining": days_left,
-                # ✅ Add these so frontend always has them
                 "Max lifespan": item.get("Max lifespan", 0),
                 "Category": item.get("Category", "Other")
             })
@@ -107,7 +115,7 @@ def predict_spoilage(request):
             if isinstance(item.get("Purchase Date"), datetime):
                 dates_to_check.add(item["Purchase Date"].date())
 
-        # Step 4: Fetch related DB data (optional, still keep it for consistency)
+        # Step 4: Fetch related DB data (optional)
         related_items = []
         if dates_to_check:
             related_items = list(inventory_collection.find({
@@ -121,6 +129,24 @@ def predict_spoilage(request):
                 "Purchase Date": 1,
                 "_id": 0
             }))
+            
+        expired_count = 0
+        zero_waste_count = 0
+
+        for i, item in enumerate(items):
+            expiry_date = item.get("Expiry Date")
+            if expiry_date < now:
+                expired_count += 1
+                continue
+            if item.get("Quantity Wasted", 0) == 0:
+                zero_waste_count += 1
+                continue
+
+        # ✅ Print once after counting
+        print("Expired:", expired_count)
+        print("Zero waste:", zero_waste_count)
+        print("Total in DB:", len(items))
+        print("Returned:", len(filtered_results))
 
         return JsonResponse({
             "predictions": filtered_results,
@@ -131,14 +157,9 @@ def predict_spoilage(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
-
-from django.views.decorators.http import require_GET
-# API endpoint to get expiring items (status 'critical') for menu optimization
-@require_GET
 @csrf_exempt
 def expiring_items(request):
     try:
-        # Fetch spoilage predictions (reuse logic from predict_spoilage)
         items = list(inventory_collection.find())
         if not items:
             return JsonResponse({"message": "No items found in the last 7 days"}, status=404)
@@ -157,12 +178,15 @@ def expiring_items(request):
             freshness = [round(float(pred), 2) for pred in predictions]
             estimated_days = [None] * len(predictions)
 
-        # Compose items with status
         result = []
         for i, item in enumerate(items):
-            status = None
+            # skip if Quantity Wasted == 0
+            if item.get("Quantity Wasted", 0) == 0:
+                continue
+
             days_left = estimated_days[i] if estimated_days[i] is not None else item.get("Days_To_Expiry", 0)
-            # Use same status logic as frontend: 'critical' means use immediately/about to expire
+
+            # status logic
             if days_left <= 2 or freshness[i] <= 20:
                 status = "critical"
             elif freshness[i] <= 40:
@@ -171,6 +195,7 @@ def expiring_items(request):
                 status = "good"
             else:
                 status = "excellent"
+
             if status == "critical":
                 result.append({
                     "name": item.get("Item Name", "Unknown"),
@@ -182,5 +207,6 @@ def expiring_items(request):
                 })
 
         return JsonResponse({"expiring_items": result}, safe=False)
+
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
